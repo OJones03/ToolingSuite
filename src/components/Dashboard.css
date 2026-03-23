@@ -120,3 +120,8 @@
   color: var(--text-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+.stat-error {
+  color: #f87171;
+  font-size: 0.9rem;
+}

@@ -1,14 +1,10 @@
+import { useEffect, useState } from 'react'
 import StatCard from './StatCard'
 import ToolCard from './ToolCard'
 import elementLogo from '../assets/elementlogo.png'
 import './Dashboard.css'
 
-// Simulated device data — replace with real API calls as needed
-const STATS = [
-  { label: 'Total Devices Monitored', value: 142, icon: '🖥️' },
-  { label: 'Online', value: 128, icon: '🟢' },
-  { label: 'Offline / Unreachable', value: 14, icon: '🔴' },
-]
+const STATS_API = 'http://device-tracking-api:8001/devices/stats'
 
 const TOOLS = [
   {
@@ -32,6 +28,24 @@ const TOOLS = [
 ]
 
 export default function Dashboard({ onLogout }) {
+  const [stats, setStats] = useState({ current_devices: null, change_events: null })
+  const [statsError, setStatsError] = useState(false)
+
+  useEffect(() => {
+    fetch(STATS_API)
+      .then((r) => {
+        if (!r.ok) throw new Error('Non-2xx response')
+        return r.json()
+      })
+      .then((data) => setStats({ current_devices: data.current_devices, change_events: data.change_events }))
+      .catch(() => setStatsError(true))
+  }, [])
+
+  const statCards = [
+    { label: 'Current Devices', value: stats.current_devices, icon: '🟢' },
+    { label: 'Change Events', value: stats.change_events, icon: '🔄' },
+  ]
+
   return (
     <div className="dashboard">
       <header className="dashboard__header">
@@ -53,9 +67,10 @@ export default function Dashboard({ onLogout }) {
         <section className="dashboard__section" aria-label="Overview statistics">
           <h2 className="dashboard__section-title">Overview</h2>
           <div className="stat-grid">
-            {STATS.map((s) => (
-              <StatCard key={s.label} {...s} />
-            ))}
+            {statsError
+              ? <p className="stat-error">⚠️ Could not load stats</p>
+              : statCards.map((s) => <StatCard key={s.label} {...s} />)
+            }
           </div>
         </section>
 
