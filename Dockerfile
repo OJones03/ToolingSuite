@@ -25,7 +25,7 @@ RUN printf 'server {\n\
         proxy_set_header X-Real-IP $remote_addr;\n\
     }\n\
     location /device-surveyor/ {\n\
-        proxy_pass http://devicesurvey-device-survey-1:3002/;\n\
+        proxy_pass http://devicesurvey-device-survey-1/;\n\
         proxy_set_header Host $host;\n\
         proxy_set_header X-Real-IP $remote_addr;\n\
         proxy_set_header Upgrade $http_upgrade;\n\
