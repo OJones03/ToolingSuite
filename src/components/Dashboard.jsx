@@ -13,7 +13,7 @@ const TOOLS = [
     description:
       'Scan and inventory all devices on the network. View hardware details, OS information, open ports, and track device history over time.',
     icon: '🔍',
-    href: '/device-surveyor',
+    href: '/device-surveyor/',
     badge: 'Surveyor',
   },
   {
