@@ -4,7 +4,7 @@ import ToolCard from './ToolCard'
 import elementLogo from '../assets/elementlogo.png'
 import './Dashboard.css'
 
-const STATS_API = 'http://device-tracking-api:8001/devices/stats'
+const STATS_API = '/api/devices/stats'
 
 const TOOLS = [
   {
