@@ -17,13 +17,8 @@ const STATIC_USERNAME = process.env.AUTH_USERNAME ?? "admin";
 const STATIC_PASSWORD = process.env.AUTH_PASSWORD ?? "element";
 
 // ─── JWT configuration ───────────────────────────────────────────────────────
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET ?? "ets-dev-secret-change-in-production";
 const JWT_EXPIRY = "8h";
-
-if (!JWT_SECRET) {
-  console.error("ERROR: Missing JWT_SECRET environment variable — copy server/.env.example to server/.env");
-  process.exit(1);
-}
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173" }));

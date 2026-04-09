@@ -1,38 +1,36 @@
-# Stage 1 – build client
-FROM node:20-alpine AS builder
+# Stage 1 – build the React client
+FROM node:20-alpine AS client-build
 
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm ci
-
+RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build
 
-# Stage 2 – prepare server
-FROM node:20-alpine AS server-deps
+# Stage 2 – install server production dependencies
+FROM node:20-alpine AS server-build
 
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN npm ci --omit=dev 2>/dev/null || true
+RUN npm ci --omit=dev
 COPY server/ ./
 
-# Stage 3 – serve
+# Stage 3 – final image: nginx serves the SPA, Node runs the auth server
 FROM nginx:stable-alpine
 
-# Install Node.js for the auth server
+# Add Node.js so we can run the auth server in the same container
 RUN apk add --no-cache nodejs
 
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=server-deps /app/server /app/server
+# Copy built client and server
+COPY --from=client-build /app/dist /usr/share/nginx/html
+COPY --from=server-build /app/server /app/server
 
-# Nginx config — serves static files, proxies /api/ to device API,
-# and proxies /login + /auth to the Node auth server (port 4000).
+# Nginx config
 RUN printf 'server {\n\
     listen 80;\n\
     root /usr/share/nginx/html;\n\
     index index.html;\n\
-    location /login {\n\
+    location = /login {\n\
         proxy_pass http://127.0.0.1:4000;\n\
         proxy_set_header Host $host;\n\
         proxy_set_header X-Real-IP $remote_addr;\n\
@@ -52,9 +50,9 @@ RUN printf 'server {\n\
     }\n\
 }\n' > /etc/nginx/conf.d/default.conf
 
-# Startup script — run Node auth server then start Nginx in foreground
-RUN printf '#!/bin/sh\nnode /app/server/index.js &\nnginx -g "daemon off;"\n' > /start.sh \
- && chmod +x /start.sh
+# Startup: launch Node auth server in background, then nginx in foreground
+RUN printf '#!/bin/sh\nnode /app/server/index.js &\nnginx -g "daemon off;"\n' \
+    > /start.sh && chmod +x /start.sh
 
 EXPOSE 80
 
