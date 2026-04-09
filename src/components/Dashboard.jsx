@@ -28,12 +28,14 @@ const TOOLS = [
   },
 ]
 
-export default function Dashboard({ onLogout }) {
+export default function Dashboard({ token, onLogout }) {
   const [stats, setStats] = useState({ current_devices: null, change_events: null })
   const [statsError, setStatsError] = useState(false)
 
   useEffect(() => {
-    fetch(STATS_API)
+    fetch(STATS_API, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((r) => {
         if (!r.ok) throw new Error('Non-2xx response')
         return r.json()
