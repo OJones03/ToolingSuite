@@ -1,8 +1,5 @@
 node_modules
-server/node_modules
 dist
 .git
 .gitignore
 *.md
-server/.env
-.env

@@ -2,30 +2,24 @@ import { useState } from 'react'
 import elementLogo from '../assets/elementlogo.png'
 import './LoginPage.css'
 
+// Credentials are checked client-side for this internal tool.
+// Replace with a real API call if a backend is introduced.
+const VALID_USERNAME = 'admin'
+const VALID_PASSWORD = 'element'
+
 export default function LoginPage({ onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Login failed')
-      onLogin(data.token)
-    } catch (err) {
-      setError(err.message)
+    if (username === VALID_USERNAME && password === VALID_PASSWORD) {
+      sessionStorage.setItem('ets_auth', '1')
+      onLogin()
+    } else {
+      setError('Invalid username or password.')
       setPassword('')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -61,9 +55,7 @@ export default function LoginPage({ onLogin }) {
             />
           </div>
           {error && <p className="login-error">{error}</p>}
-          <button className="login-btn" type="submit" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
+          <button className="login-btn" type="submit">Sign In</button>
         </form>
       </div>
     </div>
