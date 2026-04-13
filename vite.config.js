@@ -3,12 +3,4 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    proxy: {
-      '/auth': {
-        target: 'http://localhost:4001',
-        rewrite: (path) => path.replace(/^\/auth/, ''),
-      },
-    },
-  },
 })
