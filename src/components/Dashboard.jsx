@@ -28,7 +28,7 @@ const TOOLS = [
   },
 ]
 
-export default function Dashboard({ onLogout }) {
+export default function Dashboard() {
   const [stats, setStats] = useState({ current_devices: null, change_events: null })
   const [statsError, setStatsError] = useState(false)
 
@@ -59,7 +59,6 @@ export default function Dashboard({ onLogout }) {
         </div>
         <div className="dashboard__header-right">
           <span className="dashboard__version">v1.0</span>
-          <button className="logout-btn" onClick={onLogout} title="Sign out">Sign Out</button>
         </div>
       </header>
 
