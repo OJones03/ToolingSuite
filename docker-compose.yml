@@ -1,0 +1,34 @@
+services:
+
+  # ── Auth server ──────────────────────────────────────────────────────────────
+  auth-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - JWT_SECRET=toolingsuite-secret-change-me-in-prod
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=password123
+      - PORT=4001
+    expose:
+      - "4001"
+    networks:
+      - tooling
+
+  # ── React client (nginx) ─────────────────────────────────────────────────────
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - auth-server
+    networks:
+      - tooling
+
+networks:
+  tooling:
+    driver: bridge

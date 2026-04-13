@@ -73,7 +73,7 @@ function timeAgo(date) {
   return `${Math.floor(secs / 60)}m ago`
 }
 
-export default function Dashboard() {
+export default function Dashboard({ onLogout }) {
   const [stats, setStats]               = useState({ current_devices: null, change_events: null })
   const [initialLoading, setInitial]    = useState(true)
   const [refreshing, setRefreshing]     = useState(false)
@@ -196,6 +196,16 @@ export default function Dashboard() {
             ↻
           </button>
           <span className="dashboard__version">v1.0</span>
+          {onLogout && (
+            <button
+              className="logout-btn"
+              onClick={onLogout}
+              aria-label="Log out"
+              title="Log out"
+            >
+              Sign out
+            </button>
+          )}
         </div>
       </header>
 
