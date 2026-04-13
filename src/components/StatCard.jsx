@@ -1,6 +1,18 @@
 import './StatCard.css'
 
-export default function StatCard({ label, value, icon }) {
+export default function StatCard({ label, value, icon, loading }) {
+  if (loading) {
+    return (
+      <div className="stat-card stat-card--skeleton" aria-hidden="true">
+        <div className="skeleton skeleton--icon" />
+        <div className="stat-card__body">
+          <div className="skeleton skeleton--value" />
+          <div className="skeleton skeleton--label" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="stat-card">
       <span className="stat-card__icon" aria-hidden="true">{icon}</span>

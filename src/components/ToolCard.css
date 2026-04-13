@@ -21,6 +21,14 @@
   justify-content: space-between;
 }
 
+.tool-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .tool-card__icon {
   font-size: 2rem;
 }
@@ -75,4 +83,53 @@
 .tool-card__link:focus-visible {
   outline: 2px solid #7dd3fc;
   outline-offset: 3px;
+}
+
+/* ── Health status badge ── */
+.tool-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+.tool-card__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.status--online {
+  color: #2ed573;
+  background: rgba(46, 213, 115, 0.1);
+  border: 1px solid rgba(46, 213, 115, 0.3);
+}
+
+.status--online .tool-card__status-dot {
+  box-shadow: 0 0 4px #2ed573;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.status--offline {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.status--checking {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
