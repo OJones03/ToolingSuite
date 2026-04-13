@@ -27,7 +27,8 @@ const TOOLS = [
     description:
       'Run continuous or scheduled Nmap scans across your network. Detect new hosts, monitor port changes, and receive alerts on anomalies.',
     icon: '📡',
-    href: '/nmap-monitor',
+    href: `${window.location.protocol}//172.18.240.204:3001`,
+    target: '_blank',
     badge: 'Monitor',
     category: 'Monitoring',
   },
