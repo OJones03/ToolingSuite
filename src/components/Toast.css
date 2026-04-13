@@ -22,13 +22,13 @@
 .toast--error {
   background: rgba(255, 107, 107, 0.15);
   border: 1px solid rgba(255, 107, 107, 0.4);
-  color: #ff6b6b;
+  color: var(--status-error);
 }
 
 .toast--success {
   background: rgba(46, 213, 115, 0.12);
   border: 1px solid rgba(46, 213, 115, 0.4);
-  color: #2ed573;
+  color: var(--status-active);
 }
 
 .toast__close {

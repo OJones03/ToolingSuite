@@ -1,5 +1,5 @@
 .stat-card {
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
   padding: 1.25rem 1.5rem;
@@ -10,7 +10,7 @@
 }
 
 .stat-card:hover {
-  border-color: #38bdf8;
+  border-color: var(--accent);
 }
 
 .stat-card__icon {
