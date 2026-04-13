@@ -32,6 +32,18 @@ const TOOLS = [
     badge: 'Monitor',
     category: 'Monitoring',
   },
+  {
+    id: 'rundeck',
+    title: 'Rundeck',
+    description:
+      'Automate and schedule operational tasks across your infrastructure. Run jobs, manage workflows, and track execution history.',
+    icon: '⚙️',
+    href: null,
+    target: null,
+    badge: 'Automation',
+    category: 'Automation',
+    placeholder: true,
+  },
 ]
 
 function isCrossOrigin(href) {
