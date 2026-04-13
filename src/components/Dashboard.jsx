@@ -22,6 +22,17 @@ const TOOLS = [
     category: 'Discovery',
   },
   {
+    id: 'device-monitoring-api',
+    title: 'Device Monitoring API',
+    description:
+      'REST API endpoint exposing live device statistics including current device count and change events tracked by the monitoring service.',
+    icon: '🌐',
+    href: '/api/devices/stats',
+    target: '_blank',
+    badge: 'API',
+    category: 'Discovery',
+  },
+  {
     id: 'nmap-monitor',
     title: 'Nmap Monitor',
     description:
@@ -227,6 +238,7 @@ export default function Dashboard() {
                       <ToolCard key={t.id} {...t} status={healthMap[t.id]} />
                     ))}
                 </div>
+
               </div>
             ))
           )}
