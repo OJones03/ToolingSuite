@@ -33,6 +33,18 @@
   --shadow:             0 8px 32px rgba(0, 0, 0, 0.45);
 }
 
+/* ── Light theme overrides ── */
+[data-theme="light"] {
+  --bg:             #f0f2f8;
+  --surface:        #ffffff;
+  --surface-raised: #f8f9fc;
+  --text-primary:   #1a1b2e;
+  --text-muted:     #5a5d7a;
+  --text-secondary: #5a5d7a;
+  --border:         rgba(0, 0, 0, 0.09);
+  --shadow:         0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background-color: var(--bg);
@@ -692,4 +704,46 @@ body {
 
 .settings-logout-btn:hover {
   background: rgba(255, 107, 107, 0.18);
+}
+
+.settings-reset-btn {
+  display: block;
+  width: calc(100% - 1.7rem);
+  margin: 0 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.settings-theme-btn {
+  display: block;
+  width: calc(100% - 1.7rem);
+  margin: 0 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-theme-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
 }

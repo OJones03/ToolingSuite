@@ -3,5 +3,10 @@
     "username": "admin",
     "passwordHash": "$2a$10$JhUFIoj.E1PbIuPgtOvCIeEx/Q71wAn/UxwcXNBsH.POksR4SgISO",
     "role": "admin"
+  },
+  {
+    "username": "owain",
+    "passwordHash": "$2a$10$a3ToMRmNKzrDantrUuy3yOyPv6wXHSWCxl1uNmyqXqNiTjSIJeqia",
+    "role": "user"
   }
 ]

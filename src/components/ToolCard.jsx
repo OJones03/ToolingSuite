@@ -6,14 +6,17 @@ const STATUS_CONFIG = {
   checking: { label: 'Checking', cls: 'status--checking' },
 }
 
-export default function ToolCard({ title, description, icon, href, badge, target, status, placeholder }) {
+export default function ToolCard({ title, description, icon, href, badge, target, status, placeholder, editMode }) {
   const s = STATUS_CONFIG[status]
 
   return (
-    <div className={`tool-card${placeholder ? ' tool-card--placeholder' : ''}`}>
+    <div className={`tool-card${placeholder ? ' tool-card--placeholder' : ''}${editMode ? ' tool-card--edit' : ''}`}>
       <div className="tool-card__header">
         <span className="tool-card__icon" aria-hidden="true">{icon}</span>
         <div className="tool-card__badges">
+          {editMode && (
+            <span className="tool-card__drag-handle" aria-hidden="true" title="Drag to reorder">⠇</span>
+          )}
           {s && !placeholder && (
             <span className={`tool-card__status ${s.cls}`} aria-label={`Status: ${s.label}`}>
               <span className="tool-card__status-dot" aria-hidden="true" />

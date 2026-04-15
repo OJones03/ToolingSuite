@@ -57,6 +57,48 @@ const TOOLS = [
   },
 ]
 
+const mkKey = (name, user) => `${name}:${user || '_'}`
+
+function getInitialOrder(key) {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved) {
+      const ids    = JSON.parse(saved)
+      const valid  = ids.filter((id) => TOOLS.some((t) => t.id === id))
+      const missing = TOOLS.filter((t) => !valid.includes(t.id)).map((t) => t.id)
+      return [...valid, ...missing]
+    }
+  } catch {}
+  return TOOLS.map((t) => t.id)
+}
+
+function getInitialFavourites(key) {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved) {
+      const ids = JSON.parse(saved)
+      return ids.filter((id) => TOOLS.some((t) => t.id === id))
+    }
+  } catch {}
+  return []
+}
+
+function getInitialCollapsed(key) {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved) return new Set(JSON.parse(saved))
+  } catch {}
+  return new Set()
+}
+
+function getInitialTheme(key) {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved === 'light' || saved === 'dark') return saved
+  } catch {}
+  return 'dark'
+}
+
 function isCrossOrigin(href) {
   try {
     return new URL(href).origin !== window.location.origin
@@ -73,7 +115,13 @@ function timeAgo(date) {
   return `${Math.floor(secs / 60)}m ago`
 }
 
-export default function Dashboard({ token, onLogout, isAdmin, onManageUsers }) {
+export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, currentUser }) {
+  // Per-user localStorage keys — stable for the lifetime of the session
+  const orderKey   = mkKey('dashboard-tool-order', currentUser)
+  const favsKey    = mkKey('dashboard-favourites',  currentUser)
+  const colKey     = mkKey('dashboard-collapsed',   currentUser)
+  const themeKey   = mkKey('dashboard-theme',       currentUser)
+
   const [stats, setStats]               = useState({ current_devices: null, change_events: null })
   const [initialLoading, setInitial]    = useState(true)
   const [refreshing, setRefreshing]     = useState(false)
@@ -84,8 +132,29 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers }) {
   const [healthMap, setHealthMap]       = useState(() =>
     Object.fromEntries(TOOLS.map((t) => [t.id, 'checking']))
   )
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const settingsRef                     = useRef(null)
+  const [settingsOpen, setSettingsOpen]           = useState(false)
+  const [toolOrder, setToolOrder]                 = useState(() => getInitialOrder(orderKey))
+  const [favourites, setFavourites]               = useState(() => getInitialFavourites(favsKey))
+  const [collapsedSections, setCollapsed]         = useState(() => getInitialCollapsed(colKey))
+  const [theme, setTheme]                         = useState(() => getInitialTheme(themeKey))
+  const [editMode, setEditMode]                   = useState(false)
+  const [activeDragSection, setActiveDragSection] = useState(null)
+  const [dragOverSection, setDragOverSection]     = useState(null)
+  const [dragOverIndex, setDragOverIndex]         = useState(null)
+  const settingsRef    = useRef(null)
+  const dragSrcSection = useRef(null)
+  const dragSrcIndex   = useRef(null)
+  const dragSrcId      = useRef(null)
+  const dragDstSection = useRef(null)
+  const dragDstIndex   = useRef(null)
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem(themeKey, theme)
+  }, [theme, themeKey])
+
+  const keysRef = useRef({ orderKey, favsKey, colKey })
 
   // Close settings dropdown when clicking outside
   useEffect(() => {
@@ -170,16 +239,131 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers }) {
   // ── Derived ─────────────────────────────────────────────────────────────────
   const dismissToast = useCallback(() => setToast(null), [])
 
-  const filteredTools = search
-    ? TOOLS.filter(
+  const handleDragStart = useCallback((section, index, id) => {
+    dragSrcSection.current = section
+    dragSrcIndex.current   = index
+    dragSrcId.current      = id
+    setActiveDragSection(section)
+  }, [])
+
+  const handleDragEnter = useCallback((section, index) => {
+    dragDstSection.current = section
+    dragDstIndex.current   = index
+    setDragOverSection(section)
+    setDragOverIndex(typeof index === 'number' ? index : null)
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    const srcSection = dragSrcSection.current
+    const srcIndex   = dragSrcIndex.current
+    const srcId      = dragSrcId.current
+    const dstSection = dragDstSection.current
+    const dstIndex   = dragDstIndex.current
+
+    if (srcSection && dstSection) {
+      if (srcSection === 'favourites' && dstSection === 'favourites') {
+        if (srcIndex !== dstIndex) {
+          setFavourites((prev) => {
+            const updated = [...prev]
+            const [removed] = updated.splice(srcIndex, 1)
+            updated.splice(dstIndex, 0, removed)
+            localStorage.setItem(keysRef.current.favsKey, JSON.stringify(updated))
+            return updated
+          })
+        }
+      } else if (srcSection !== 'favourites' && dstSection === 'favourites') {
+        setFavourites((prev) => {
+          if (prev.includes(srcId)) return prev
+          const updated  = [...prev]
+          const insertAt = typeof dstIndex === 'number' ? dstIndex : updated.length
+          updated.splice(insertAt, 0, srcId)
+          localStorage.setItem(keysRef.current.favsKey, JSON.stringify(updated))
+          return updated
+        })
+      } else if (srcSection === dstSection && srcSection !== 'favourites') {
+        if (srcIndex !== dstIndex && srcId) {
+          setToolOrder((prev) => {
+            const sectionIds = prev.filter((id) => {
+              const t = TOOLS.find((tt) => tt.id === id)
+              return t && t.category === srcSection
+            })
+            const toId = sectionIds[dstIndex]
+            if (!toId || toId === srcId) return prev
+            const updated   = [...prev]
+            const fromIdx   = updated.indexOf(srcId)
+            if (fromIdx === -1) return prev
+            const [removed] = updated.splice(fromIdx, 1)
+            const toIdx     = updated.indexOf(toId)
+            updated.splice(toIdx >= 0 ? toIdx : updated.length, 0, removed)
+            localStorage.setItem(keysRef.current.orderKey, JSON.stringify(updated))
+            return updated
+          })
+        }
+      } else if (srcSection === 'favourites' && dstSection !== 'favourites') {
+        setFavourites((prev) => {
+          const updated = prev.filter((id) => id !== srcId)
+          localStorage.setItem(keysRef.current.favsKey, JSON.stringify(updated))
+          return updated
+        })
+      }
+    }
+
+    dragSrcSection.current = null
+    dragSrcIndex.current   = null
+    dragSrcId.current      = null
+    dragDstSection.current = null
+    dragDstIndex.current   = null
+    setActiveDragSection(null)
+    setDragOverSection(null)
+    setDragOverIndex(null)
+  }, [])
+
+  const toggleSection = useCallback((name) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      localStorage.setItem(keysRef.current.colKey, JSON.stringify([...next]))
+      return next
+    })
+  }, [])
+
+  const handleResetLayout = useCallback(() => {
+    setToolOrder(TOOLS.map((t) => t.id))
+    setFavourites([])
+    setCollapsed(new Set())
+    localStorage.removeItem(keysRef.current.orderKey)
+    localStorage.removeItem(keysRef.current.favsKey)
+    localStorage.removeItem(keysRef.current.colKey)
+    setSettingsOpen(false)
+  }, [])
+
+  const orderedTools      = toolOrder.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean)
+  const favTools          = favourites.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean)
+  const nonFavTools       = orderedTools.filter((t) => !favourites.includes(t.id))
+
+  const filteredFav = search
+    ? favTools.filter(
         (t) =>
           t.title.toLowerCase().includes(search.toLowerCase()) ||
           t.description.toLowerCase().includes(search.toLowerCase()) ||
           t.category.toLowerCase().includes(search.toLowerCase())
       )
-    : TOOLS
+    : favTools
 
-  const categories = [...new Set(filteredTools.map((t) => t.category))]
+  const filteredNonFav = search
+    ? nonFavTools.filter(
+        (t) =>
+          t.title.toLowerCase().includes(search.toLowerCase()) ||
+          t.description.toLowerCase().includes(search.toLowerCase()) ||
+          t.category.toLowerCase().includes(search.toLowerCase())
+      )
+    : nonFavTools
+
+  const allCategories      = [...new Set(nonFavTools.map((t) => t.category))]
+  const filteredCategories = search ? [...new Set(filteredNonFav.map((t) => t.category))] : allCategories
+  const isCrossSection          = !!(activeDragSection && activeDragSection !== 'favourites')
+  const isDraggingFromFavourites = activeDragSection === 'favourites'
 
   const statCards = [
     { label: 'Current Devices', value: stats.current_devices, icon: '🟢' },
@@ -189,6 +373,28 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers }) {
   return (
     <div className="dashboard">
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}
+
+      {/* ── Edge remove zones (visible only while dragging from Favourites) ── */}
+      {isDraggingFromFavourites && (
+        <>
+          <div
+            className={`dashboard__edge-zone dashboard__edge-zone--left${dragOverSection === '__remove__' ? ' dashboard__edge-zone--active' : ''}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnter={() => handleDragEnter('__remove__', null)}
+            onDrop={handleDragEnd}
+          >
+            <span className="dashboard__edge-zone-label">✕ Remove</span>
+          </div>
+          <div
+            className={`dashboard__edge-zone dashboard__edge-zone--right${dragOverSection === '__remove__' ? ' dashboard__edge-zone--active' : ''}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnter={() => handleDragEnter('__remove__', null)}
+            onDrop={handleDragEnd}
+          >
+            <span className="dashboard__edge-zone-label">✕ Remove</span>
+          </div>
+        </>
+      )}
 
       <header className="dashboard__header">
         <div className="dashboard__header-inner">
@@ -236,6 +442,20 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers }) {
                   </>
                 )}
                 <button
+                  className="settings-reset-btn"
+                  onClick={handleResetLayout}
+                >
+                  ↺ Reset Layout
+                </button>
+                <div className="settings-divider" />
+                <button
+                  className="settings-theme-btn"
+                  onClick={() => setTheme((t) => t === 'dark' ? 'light' : 'dark')}
+                >
+                  {theme === 'dark' ? '☀ Light Mode' : '🌙 Dark Mode'}
+                </button>
+                <div className="settings-divider" />
+                <button
                   className="settings-logout-btn"
                   onClick={() => { setSettingsOpen(false); onLogout(); }}
                 >
@@ -248,47 +468,153 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers }) {
       </header>
 
       <main className="dashboard__main">
+
+        {/* ── Overview ─────────────────────────────────────────────────────── */}
         <section className="dashboard__section" aria-label="Overview statistics">
-          <h2 className="dashboard__section-title">Overview</h2>
-          <div className="stat-grid">
-            {statCards.map((s) => (
-              <StatCard key={s.label} {...s} loading={initialLoading} />
-            ))}
-          </div>
+          <button
+            className="dashboard__subsection-toggle"
+            onClick={() => toggleSection('__overview__')}
+            aria-expanded={!collapsedSections.has('__overview__')}
+          >
+            <span className={`dashboard__chevron${collapsedSections.has('__overview__') ? '' : ' dashboard__chevron--open'}`} aria-hidden="true">▶</span>
+            <span className="dashboard__subsection-label">Overview</span>
+          </button>
+          {!collapsedSections.has('__overview__') && (
+            <div className="stat-grid">
+              {statCards.map((s) => (
+                <StatCard key={s.label} {...s} loading={initialLoading} />
+              ))}
+            </div>
+          )}
         </section>
 
+        {/* ── Favourites ───────────────────────────────────────────────────── */}
+        {(favTools.length > 0 || editMode) && (
+          <section
+            className={`dashboard__section${isCrossSection && dragOverSection === 'favourites' ? ' dashboard__section--drop-active' : ''}`}
+            aria-label="Favourite tools"
+            onDragOver={editMode ? (e) => e.preventDefault() : undefined}
+            onDragEnter={editMode ? () => handleDragEnter('favourites', favTools.length) : undefined}
+          >
+            <button
+              className="dashboard__subsection-toggle"
+              onClick={() => toggleSection('__favourites__')}
+              aria-expanded={!collapsedSections.has('__favourites__')}
+            >
+              <span className={`dashboard__chevron${collapsedSections.has('__favourites__') ? '' : ' dashboard__chevron--open'}`} aria-hidden="true">▶</span>
+              <span className="dashboard__subsection-label">★ Favourites</span>
+              {favTools.length > 0 && (
+                <span className="dashboard__subsection-count">{favTools.length}</span>
+              )}
+            </button>
+            {!collapsedSections.has('__favourites__') && (
+              <>
+                {editMode && favTools.length === 0 && (
+                  <p className="dashboard__fav-drop-hint">Drag tiles here to add them to Favourites</p>
+                )}
+                {favTools.length > 0 && (
+                  <div className="tool-grid">
+                    {favTools.map((t, index) => (
+                      <div
+                        key={t.id}
+                        className={`tool-card-drag-wrapper${dragOverSection === 'favourites' && dragOverIndex === index ? ' tool-card-drag-wrapper--over' : ''}`}
+                        draggable={editMode}
+                        onDragStart={editMode ? () => handleDragStart('favourites', index, t.id) : undefined}
+                        onDragEnter={editMode ? (e) => { e.stopPropagation(); handleDragEnter('favourites', index) } : undefined}
+                        onDragOver={editMode ? (e) => e.preventDefault() : undefined}
+                        onDragEnd={editMode ? handleDragEnd : undefined}
+                      >
+                <ToolCard
+                          {...t}
+                          status={healthMap[t.id]}
+                          editMode={editMode}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        {/* ── Tools ────────────────────────────────────────────────────────── */}
         <section className="dashboard__section" aria-label="Available tools">
           <div className="dashboard__section-header">
             <h2 className="dashboard__section-title">Tools</h2>
-            <div className="dashboard__search-wrapper">
-              <span className="dashboard__search-icon" aria-hidden="true">🔎</span>
-              <input
-                className="dashboard__search"
-                type="search"
-                placeholder="Search tools…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                aria-label="Search tools"
-              />
+            <div className="dashboard__section-actions">
+              {!search && (
+                <button
+                  className={`dashboard__edit-btn${editMode ? ' dashboard__edit-btn--active' : ''}`}
+                  onClick={() => setEditMode((e) => !e)}
+                  title={editMode ? 'Done editing layout' : 'Edit layout'}
+                >
+                  {editMode ? '✓ Done' : '✏ Edit Layout'}
+                </button>
+              )}
+              <div className="dashboard__search-wrapper">
+                <span className="dashboard__search-icon" aria-hidden="true">🔎</span>
+                <input
+                  className="dashboard__search"
+                  type="search"
+                  placeholder="Search tools…"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); if (editMode) setEditMode(false) }}
+                  aria-label="Search tools"
+                />
+              </div>
             </div>
           </div>
+          {editMode && (
+            <p className="dashboard__edit-hint">Drag tiles to reorder. Drag into <strong>★ Favourites</strong> to pin. Drag a favourite to a category or <strong>either side of the screen</strong> to remove it.</p>
+          )}
 
-          {filteredTools.length === 0 ? (
+          {filteredCategories.length === 0 && filteredFav.length === 0 && search ? (
             <p className="dashboard__no-results">No tools match &ldquo;{search}&rdquo;</p>
           ) : (
-            categories.map((cat) => (
-              <div key={cat} className="dashboard__category">
-                <h3 className="dashboard__category-label">{cat}</h3>
-                <div className="tool-grid">
-                  {filteredTools
-                    .filter((t) => t.category === cat)
-                    .map((t) => (
-                      <ToolCard key={t.id} {...t} status={healthMap[t.id]} />
-                    ))}
+            filteredCategories.map((cat) => {
+              const catTools   = filteredNonFav.filter((t) => t.category === cat)
+              const isCollapsed = collapsedSections.has(cat)
+              return (
+                <div
+                  key={cat}
+                  className={`dashboard__category${editMode && isDraggingFromFavourites && dragOverSection === cat ? ' dashboard__category--drop-active' : ''}`}
+                  onDragOver={editMode && isDraggingFromFavourites ? (e) => e.preventDefault() : undefined}
+                  onDragEnter={editMode && isDraggingFromFavourites ? () => handleDragEnter(cat, null) : undefined}
+                >
+                  <button
+                    className="dashboard__subsection-toggle"
+                    onClick={() => toggleSection(cat)}
+                    aria-expanded={!isCollapsed}
+                  >
+                    <span className={`dashboard__chevron${isCollapsed ? '' : ' dashboard__chevron--open'}`} aria-hidden="true">▶</span>
+                    <span className="dashboard__subsection-label">{cat}</span>
+                    <span className="dashboard__subsection-count">{catTools.length}</span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="tool-grid">
+                      {catTools.map((t, index) => (
+                        <div
+                          key={t.id}
+                          className={`tool-card-drag-wrapper${dragOverSection === cat && dragOverIndex === index ? ' tool-card-drag-wrapper--over' : ''}`}
+                          draggable={editMode}
+                          onDragStart={editMode ? () => handleDragStart(cat, index, t.id) : undefined}
+                          onDragEnter={editMode ? (e) => { e.stopPropagation(); handleDragEnter(cat, activeDragSection === 'favourites' ? null : index) } : undefined}
+                          onDragOver={editMode ? (e) => e.preventDefault() : undefined}
+                          onDragEnd={editMode ? handleDragEnd : undefined}
+                        >
+                          <ToolCard
+                            {...t}
+                            status={healthMap[t.id]}
+                            editMode={editMode}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-              </div>
-            ))
+              )
+            })
           )}
         </section>
       </main>

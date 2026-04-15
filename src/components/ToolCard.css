@@ -161,3 +161,27 @@
   cursor: default;
   font-style: italic;
 }
+
+/* ── Edit / drag mode ── */
+.tool-card--edit {
+  user-select: none;
+}
+
+.tool-card--edit:hover {
+  transform: none;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.tool-card--edit .tool-card__link {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.tool-card__drag-handle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  line-height: 1;
+  cursor: grab;
+  padding: 0 0.15rem;
+}
