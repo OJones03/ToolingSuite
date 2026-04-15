@@ -33,6 +33,7 @@ RUN chmod +x /app-entrypoint.sh
 # Auth runs on localhost inside the container
 ENV API_BACKEND=http://device-tracking-api:8001/
 ENV AUTH_BACKEND=http://localhost:4000
+ENV JWT_SECRET=change-me-to-a-random-secret
 
 EXPOSE 80
 ENTRYPOINT ["/app-entrypoint.sh"]
