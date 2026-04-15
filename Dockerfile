@@ -1,34 +1,25 @@
-# Stage 1 – build
-FROM node:20-alpine AS builder
-
+# Build stage — React frontend
+FROM node:20-alpine AS build
 WORKDIR /app
-
-COPY package*.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
-
 COPY . .
 RUN npm run build
 
-# Stage 2 – serve
-FROM nginx:stable-alpine
+# Production stage — nginx
+FROM nginx:alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built React app
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Ensure client-side routing works and proxy /api/ to the backend
-RUN printf 'server {\n\
-    listen 80;\n\
-    root /usr/share/nginx/html;\n\
-    index index.html;\n\
-    location /api/ {\n\
-        proxy_pass http://device-tracking-api:8001/;\n\
-        proxy_set_header Host $host;\n\
-        proxy_set_header X-Real-IP $remote_addr;\n\
-    }\n\
-    location / {\n\
-        try_files $uri $uri/ /index.html;\n\
-    }\n\
-}\n' > /etc/nginx/conf.d/default.conf
+# Copy nginx config template and entrypoint
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY docker-entrypoint.sh /app-entrypoint.sh
+RUN chmod +x /app-entrypoint.sh
+
+# Default values — override via environment variables
+ENV API_BACKEND=http://device-tracking-api:8001/
+ENV AUTH_BACKEND=http://auth:4000
 
 EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/app-entrypoint.sh"]

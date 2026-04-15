@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import StatCard from './StatCard'
 import ToolCard from './ToolCard'
 import Toast from './Toast'
@@ -73,7 +73,7 @@ function timeAgo(date) {
   return `${Math.floor(secs / 60)}m ago`
 }
 
-export default function Dashboard() {
+export default function Dashboard({ token, onLogout, isAdmin, onManageUsers }) {
   const [stats, setStats]               = useState({ current_devices: null, change_events: null })
   const [initialLoading, setInitial]    = useState(true)
   const [refreshing, setRefreshing]     = useState(false)
@@ -84,16 +84,32 @@ export default function Dashboard() {
   const [healthMap, setHealthMap]       = useState(() =>
     Object.fromEntries(TOOLS.map((t) => [t.id, 'checking']))
   )
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const settingsRef                     = useRef(null)
+
+  // Close settings dropdown when clicking outside
+  useEffect(() => {
+    if (!settingsOpen) return
+    const handler = (e) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setSettingsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [settingsOpen])
 
   // ── Stats fetching ──────────────────────────────────────────────────────────
   const fetchStats = useCallback((isManual = false) => {
     if (isManual) setRefreshing(true)
-    fetch(STATS_API)
+    fetch(STATS_API, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((r) => {
+        if (r.status === 401 || r.status === 403) { onLogout(); return null }
         if (!r.ok) throw new Error('stats-error')
         return r.json()
       })
       .then((data) => {
+        if (!data) return
         setStats({ current_devices: data.current_devices, change_events: data.change_events })
         setLastUpdated(Date.now())
         setInitial(false)
@@ -104,7 +120,7 @@ export default function Dashboard() {
         setRefreshing(false)
         setToast({ id: Date.now(), message: '⚠️ Could not load stats', type: 'error' })
       })
-  }, [])
+  }, [token, onLogout])
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
@@ -196,6 +212,38 @@ export default function Dashboard() {
             ↻
           </button>
           <span className="dashboard__version">v1.0</span>
+          <div className="settings-menu" ref={settingsRef}>
+            <button
+              className="settings-btn"
+              onClick={() => setSettingsOpen((o) => !o)}
+              title="Settings"
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+            >
+              ⚙
+            </button>
+            {settingsOpen && (
+              <div className="settings-dropdown">
+                {isAdmin && (
+                  <>
+                    <button
+                      className="settings-manage-users-btn"
+                      onClick={() => { setSettingsOpen(false); onManageUsers(); }}
+                    >
+                      👤 Manage Users
+                    </button>
+                    <div className="settings-divider" />
+                  </>
+                )}
+                <button
+                  className="settings-logout-btn"
+                  onClick={() => { setSettingsOpen(false); onLogout(); }}
+                >
+                  ↪ Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

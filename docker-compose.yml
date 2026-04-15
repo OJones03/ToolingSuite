@@ -1,0 +1,20 @@
+services:
+  tooling-suite:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      # Nginx proxy backend for /api/ requests
+      - API_BACKEND=http://device-tracking-api:8001/
+      # Auth credentials — change in Portainer
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-random-secret}
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-admin}
+      - JWT_EXPIRY=${JWT_EXPIRY:-8h}
+    volumes:
+      # Persist user accounts across container restarts
+      - auth-data:/auth/data
+    restart: unless-stopped
+
+volumes:
+  auth-data:

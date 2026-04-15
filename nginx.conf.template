@@ -1,0 +1,35 @@
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Internal auth check used by auth_request
+    location = /_auth_verify {
+        internal;
+        proxy_pass ${AUTH_BACKEND}/auth/verify;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Authorization $http_authorization;
+    }
+
+    # Proxy login / verify requests to auth service
+    location /auth/ {
+        proxy_pass ${AUTH_BACKEND};
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Gate API access behind JWT verification
+    location /api/ {
+        auth_request /_auth_verify;
+        proxy_pass ${API_BACKEND};
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        add_header Cache-Control "no-cache";
+    }
+}
