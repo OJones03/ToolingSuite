@@ -113,7 +113,7 @@ app.get("/auth/verify", (req, res) => {
 // List users
 app.get("/auth/users", authenticateToken, requireAdmin, (req, res) => {
   const users = loadUsers() ?? [];
-  res.json(users.map(({ username, role }) => ({ username, role })));
+  res.json(users.map(({ username, role, hiddenTools }) => ({ username, role, hiddenTools: hiddenTools ?? [] })));
 });
 
 // Create user
@@ -174,6 +174,36 @@ app.put("/auth/users/:username/password", authenticateToken, async (req, res) =>
   if (!user) return res.status(404).json({ error: "User not found" });
 
   user.passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  saveUsers(users);
+  res.sendStatus(204);
+});
+
+// Get hidden tools for a user (admin or self)
+app.get("/auth/users/:username/tools", authenticateToken, (req, res) => {
+  const { username } = req.params;
+  if (req.user.role !== "admin" && req.user.sub !== username) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const users = loadUsers() ?? [];
+  const user = users.find((u) => u.username === username);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  res.json({ hiddenTools: user.hiddenTools ?? [] });
+});
+
+// Update hidden tools for a user (admin only)
+app.put("/auth/users/:username/tools", authenticateToken, requireAdmin, (req, res) => {
+  const { username } = req.params;
+  const { hiddenTools } = req.body ?? {};
+  if (!Array.isArray(hiddenTools)) {
+    return res.status(400).json({ error: "hiddenTools must be an array" });
+  }
+  if (!hiddenTools.every((id) => typeof id === "string" && id.length <= 128)) {
+    return res.status(400).json({ error: "Invalid tool IDs" });
+  }
+  const users = loadUsers() ?? [];
+  const user = users.find((u) => u.username === username);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.hiddenTools = hiddenTools;
   saveUsers(users);
   res.sendStatus(204);
 });

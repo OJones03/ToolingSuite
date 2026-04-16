@@ -3,59 +3,12 @@ import StatCard from './StatCard'
 import ToolCard from './ToolCard'
 import Toast from './Toast'
 import elementLogo from '../assets/elementlogo.png'
+import { TOOLS } from '../tools'
 import './Dashboard.css'
 
 const STATS_API          = '/api/devices/stats'
 const REFRESH_INTERVAL   = 30_000
 const HEALTH_INTERVAL    = 60_000
-
-const TOOLS = [
-  {
-    id: 'device-surveyor',
-    title: 'Device Surveyor',
-    description:
-      'Scan and inventory all devices on the network. View hardware details, OS information, open ports, and track device history over time.',
-    icon: '🔍',
-    href: `${window.location.protocol}//${window.location.hostname}:3002`,
-    target: '_blank',
-    badge: 'Surveyor',
-    category: 'Discovery',
-  },
-  {
-    id: 'device-monitoring-api',
-    title: 'Device Monitoring API',
-    description:
-      'REST API endpoint exposing live device statistics including current device count and change events tracked by the monitoring service.',
-    icon: '🌐',
-    href: '/api/devices/stats',
-    target: '_blank',
-    badge: 'API',
-    category: 'Discovery',
-  },
-  {
-    id: 'nmap-monitor',
-    title: 'Nmap Monitor',
-    description:
-      'Run continuous or scheduled Nmap scans across your network. Detect new hosts, monitor port changes, and receive alerts on anomalies.',
-    icon: '📡',
-    href: `${window.location.protocol}//172.18.240.204:3001`,
-    target: '_blank',
-    badge: 'Monitor',
-    category: 'Monitoring',
-  },
-  {
-    id: 'rundeck',
-    title: 'Rundeck',
-    description:
-      'Automate and schedule operational tasks across your infrastructure. Run jobs, manage workflows, and track execution history.',
-    icon: '⚙️',
-    href: null,
-    target: null,
-    badge: 'Automation',
-    category: 'Automation',
-    placeholder: true,
-  },
-]
 
 const mkKey = (name, user) => `${name}:${user || '_'}`
 
@@ -122,6 +75,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
   const colKey     = mkKey('dashboard-collapsed',   currentUser)
   const themeKey   = mkKey('dashboard-theme',       currentUser)
 
+  const [hiddenTools, setHiddenTools]   = useState([])
   const [stats, setStats]               = useState({ current_devices: null, change_events: null })
   const [initialLoading, setInitial]    = useState(true)
   const [refreshing, setRefreshing]     = useState(false)
@@ -155,6 +109,17 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
   }, [theme, themeKey])
 
   const keysRef = useRef({ orderKey, favsKey, colKey })
+
+  // ── Fetch hidden tools for this user ───────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser || !token) return
+    fetch(`/auth/users/${encodeURIComponent(currentUser)}/tools`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setHiddenTools(data.hiddenTools ?? []) })
+      .catch(() => {})
+  }, [currentUser, token])
 
   // Close settings dropdown when clicking outside
   useEffect(() => {
@@ -208,7 +173,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
 
   // ── Tool health checks ──────────────────────────────────────────────────────
   const checkHealth = useCallback(() => {
-    TOOLS.forEach((tool) => {
+    TOOLS.filter((tool) => !tool.placeholder && tool.href && !hiddenTools.includes(tool.id)).forEach((tool) => {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 4000)
       fetch(tool.href, {
@@ -228,7 +193,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
           }
         })
     })
-  }, [])
+  }, [hiddenTools])
 
   useEffect(() => {
     checkHealth()
@@ -338,8 +303,8 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
     setSettingsOpen(false)
   }, [])
 
-  const orderedTools      = toolOrder.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean)
-  const favTools          = favourites.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean)
+  const orderedTools      = toolOrder.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
+  const favTools          = favourites.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
   const nonFavTools       = orderedTools.filter((t) => !favourites.includes(t.id))
 
   const filteredFav = search

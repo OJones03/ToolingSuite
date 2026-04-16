@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { TOOLS } from '../tools';
 
 export default function UserManager({ token, currentUser, onClose }) {
   const [users, setUsers] = useState([]);
@@ -8,6 +9,7 @@ export default function UserManager({ token, currentUser, onClose }) {
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [changePw, setChangePw] = useState({}); // { [username]: { value, error, success } }
+  const [toolAccess, setToolAccess] = useState({}); // { [username]: { hidden: string[], expanded: bool, saving: bool, error: string, success: string } }
 
   const authHeader = { Authorization: `Bearer ${token}` };
 
@@ -16,7 +18,20 @@ export default function UserManager({ token, currentUser, onClose }) {
     try {
       const res = await fetch('/auth/users', { headers: authHeader });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setUsers(await res.json());
+      const data = await res.json();
+      setUsers(data);
+      // Seed toolAccess state from the server-returned hiddenTools
+      setToolAccess((prev) => {
+        const next = { ...prev };
+        data.forEach((u) => {
+          if (!next[u.username]) {
+            next[u.username] = { hidden: u.hiddenTools ?? [], expanded: false, saving: false, error: '', success: '' };
+          } else {
+            next[u.username] = { ...next[u.username], hidden: u.hiddenTools ?? [] };
+          }
+        });
+        return next;
+      });
     } catch (e) {
       setLoadError(e.message);
     }
@@ -83,6 +98,35 @@ export default function UserManager({ token, currentUser, onClose }) {
     }
   }
 
+  function toggleToolAccess(username, toolId) {
+    setToolAccess((prev) => {
+      const current = prev[username]?.hidden ?? [];
+      const updated = current.includes(toolId)
+        ? current.filter((id) => id !== toolId)
+        : [...current, toolId];
+      return { ...prev, [username]: { ...prev[username], hidden: updated, success: '', error: '' } };
+    });
+  }
+
+  async function handleSaveTools(username) {
+    setToolAccess((prev) => ({ ...prev, [username]: { ...prev[username], saving: true, error: '', success: '' } }));
+    try {
+      const hidden = toolAccess[username]?.hidden ?? [];
+      const res = await fetch(`/auth/users/${encodeURIComponent(username)}/tools`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ hiddenTools: hidden }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setToolAccess((prev) => ({ ...prev, [username]: { ...prev[username], saving: false, success: 'Saved.' } }));
+    } catch (e) {
+      setToolAccess((prev) => ({ ...prev, [username]: { ...prev[username], saving: false, error: e.message } }));
+    }
+  }
+
   return (
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-panel user-manager-panel">
@@ -136,6 +180,67 @@ export default function UserManager({ token, currentUser, onClose }) {
                     {changePw[u.username]?.success && (
                       <p className="um-success um-inline-msg">{changePw[u.username].success}</p>
                     )}
+                    {/* ── Tool visibility ── */}
+                    <div className="um-tools-section">
+                      <button
+                        type="button"
+                        className="um-tools-toggle"
+                        onClick={() =>
+                          setToolAccess((prev) => ({
+                            ...prev,
+                            [u.username]: { ...prev[u.username], expanded: !prev[u.username]?.expanded },
+                          }))
+                        }
+                      >
+                        {toolAccess[u.username]?.expanded ? '▾' : '▸'} Tool Visibility
+                        {(toolAccess[u.username]?.hidden ?? []).length > 0 && (
+                          <span className="um-tools-hidden-count">
+                            {(toolAccess[u.username]?.hidden ?? []).length} hidden
+                          </span>
+                        )}
+                      </button>
+                      {toolAccess[u.username]?.expanded && (
+                        <div className="um-tools-panel">
+                          <p className="um-hint">Uncheck tools to hide them from this user.</p>
+                          <ul className="um-tools-list">
+                            {TOOLS.map((tool) => {
+                              const isHidden = (toolAccess[u.username]?.hidden ?? []).includes(tool.id);
+                              return (
+                                <li key={tool.id} className="um-tools-item">
+                                  <label className="um-tools-label">
+                                    <input
+                                      type="checkbox"
+                                      className="um-tools-checkbox"
+                                      checked={!isHidden}
+                                      onChange={() => toggleToolAccess(u.username, tool.id)}
+                                    />
+                                    <span className="um-tools-icon" aria-hidden="true">{tool.icon}</span>
+                                    {tool.title}
+                                    <span className="um-tools-badge">{tool.badge}</span>
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                          <div className="um-tools-actions">
+                            <button
+                              type="button"
+                              className="um-tools-save-btn"
+                              onClick={() => handleSaveTools(u.username)}
+                              disabled={toolAccess[u.username]?.saving}
+                            >
+                              {toolAccess[u.username]?.saving ? 'Saving…' : 'Save Visibility'}
+                            </button>
+                            {toolAccess[u.username]?.error && (
+                              <span className="um-error um-inline-msg">{toolAccess[u.username].error}</span>
+                            )}
+                            {toolAccess[u.username]?.success && (
+                              <span className="um-success um-inline-msg">{toolAccess[u.username].success}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     {u.username !== currentUser && (
                       <button className="um-delete-btn" onClick={() => handleDelete(u.username)}>
                         Delete
