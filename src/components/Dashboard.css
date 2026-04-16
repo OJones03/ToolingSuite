@@ -109,7 +109,9 @@
 .tool-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-auto-rows: 1fr;
   gap: 1.25rem;
+  align-items: stretch;
 }
 
 /* ── Footer ── */
@@ -376,6 +378,8 @@
 /* ── Drag wrapper ── */
 .tool-card-drag-wrapper {
   transition: opacity 0.15s;
+  display: flex;
+  flex-direction: column;
 }
 
 .tool-card-drag-wrapper--over .tool-card {

@@ -8,6 +8,8 @@
   gap: 0.75rem;
   box-shadow: var(--shadow);
   transition: border-color 0.15s, transform 0.15s;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .tool-card:hover {

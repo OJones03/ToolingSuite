@@ -178,6 +178,88 @@ app.put("/auth/users/:username/password", authenticateToken, async (req, res) =>
   res.sendStatus(204);
 });
 
+// ── Custom tools store ────────────────────────────────────
+const CUSTOM_TOOLS_FILE = path.join(DATA_DIR, "custom-tools.json");
+
+function loadCustomTools() {
+  try {
+    return JSON.parse(fs.readFileSync(CUSTOM_TOOLS_FILE, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomTools(tools) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(CUSTOM_TOOLS_FILE, JSON.stringify(tools, null, 2));
+}
+
+// Get all custom tools (any authenticated user)
+app.get("/auth/custom-tools", authenticateToken, (req, res) => {
+  res.json(loadCustomTools());
+});
+
+// Create custom tool (admin only)
+app.post("/auth/custom-tools", authenticateToken, requireAdmin, (req, res) => {
+  const { title, icon, description, href, badge, category } = req.body ?? {};
+  if (!title || !description || !badge || !category) {
+    return res.status(400).json({ error: "title, description, badge and category are required" });
+  }
+  const tools = loadCustomTools();
+  const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const hrefVal = href ? String(href).slice(0, 500) : null;
+  const tool = {
+    id,
+    title: String(title).slice(0, 100),
+    icon: String(icon || "🔧").slice(0, 10),
+    description: String(description).slice(0, 500),
+    href: hrefVal,
+    target: hrefVal ? "_blank" : null,
+    badge: String(badge).slice(0, 30),
+    category: String(category).slice(0, 50),
+    placeholder: !hrefVal,
+    custom: true,
+  };
+  tools.push(tool);
+  saveCustomTools(tools);
+  res.status(201).json(tool);
+});
+
+// Update custom tool (admin only)
+app.put("/auth/custom-tools/:id", authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { title, icon, description, href, badge, category } = req.body ?? {};
+  const tools = loadCustomTools();
+  const idx = tools.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Tool not found" });
+  const existing = tools[idx];
+  const hrefVal = href !== undefined ? (href || null) : existing.href;
+  tools[idx] = {
+    ...existing,
+    title: title ? String(title).slice(0, 100) : existing.title,
+    icon: icon !== undefined ? String(icon || "🔧").slice(0, 10) : existing.icon,
+    description: description ? String(description).slice(0, 500) : existing.description,
+    href: hrefVal,
+    target: hrefVal ? "_blank" : null,
+    badge: badge ? String(badge).slice(0, 30) : existing.badge,
+    category: category ? String(category).slice(0, 50) : existing.category,
+    placeholder: !hrefVal,
+  };
+  saveCustomTools(tools);
+  res.json(tools[idx]);
+});
+
+// Delete custom tool (admin only)
+app.delete("/auth/custom-tools/:id", authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const tools = loadCustomTools();
+  const idx = tools.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Tool not found" });
+  tools.splice(idx, 1);
+  saveCustomTools(tools);
+  res.sendStatus(204);
+});
+
 // Get hidden tools for a user (admin or self)
 app.get("/auth/users/:username/tools", authenticateToken, (req, res) => {
   const { username } = req.params;

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import UserManager from './components/UserManager';
+import AppManager from './components/AppManager';
 import './App.css';
 
 function decodeJwtPayload(token) {
@@ -18,6 +19,8 @@ function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [authenticated, setAuthenticated] = useState(false);
   const [userManagerOpen, setUserManagerOpen] = useState(false);
+  const [appManagerOpen, setAppManagerOpen] = useState(false);
+  const [toolsVersion, setToolsVersion] = useState(0);
 
   const currentUser = token ? decodeJwtPayload(token)?.sub : null;
   const isAdmin = token ? decodeJwtPayload(token)?.role === 'admin' : false;
@@ -53,6 +56,7 @@ function App() {
     setToken(null);
     setAuthenticated(false);
     setUserManagerOpen(false);
+    setAppManagerOpen(false);
   };
 
   if (!authenticated) {
@@ -67,12 +71,21 @@ function App() {
         isAdmin={isAdmin}
         currentUser={currentUser}
         onManageUsers={() => setUserManagerOpen(true)}
+        onManageApps={() => setAppManagerOpen(true)}
+        toolsVersion={toolsVersion}
       />
       {userManagerOpen && (
         <UserManager
           token={token}
           currentUser={currentUser}
           onClose={() => setUserManagerOpen(false)}
+        />
+      )}
+      {appManagerOpen && (
+        <AppManager
+          token={token}
+          onClose={() => setAppManagerOpen(false)}
+          onToolsChanged={() => setToolsVersion((v) => v + 1)}
         />
       )}
     </>

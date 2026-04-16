@@ -16,10 +16,10 @@ function getInitialOrder(key) {
   try {
     const saved = localStorage.getItem(key)
     if (saved) {
-      const ids    = JSON.parse(saved)
-      const valid  = ids.filter((id) => TOOLS.some((t) => t.id === id))
-      const missing = TOOLS.filter((t) => !valid.includes(t.id)).map((t) => t.id)
-      return [...valid, ...missing]
+      const ids     = JSON.parse(saved)
+      // Keep all saved IDs (custom tools included); ensure static tools present
+      const missing = TOOLS.filter((t) => !ids.includes(t.id)).map((t) => t.id)
+      return [...ids, ...missing]
     }
   } catch {}
   return TOOLS.map((t) => t.id)
@@ -28,10 +28,8 @@ function getInitialOrder(key) {
 function getInitialFavourites(key) {
   try {
     const saved = localStorage.getItem(key)
-    if (saved) {
-      const ids = JSON.parse(saved)
-      return ids.filter((id) => TOOLS.some((t) => t.id === id))
-    }
+    // Trust all saved IDs; allTools.find + filter(Boolean) drops stale ones
+    if (saved) return JSON.parse(saved)
   } catch {}
   return []
 }
@@ -68,7 +66,7 @@ function timeAgo(date) {
   return `${Math.floor(secs / 60)}m ago`
 }
 
-export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, currentUser }) {
+export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onManageApps, currentUser, toolsVersion }) {
   // Per-user localStorage keys — stable for the lifetime of the session
   const orderKey   = mkKey('dashboard-tool-order', currentUser)
   const favsKey    = mkKey('dashboard-favourites',  currentUser)
@@ -76,6 +74,8 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
   const themeKey   = mkKey('dashboard-theme',       currentUser)
 
   const [hiddenTools, setHiddenTools]   = useState([])
+  const [customTools, setCustomTools]   = useState([])
+  const allToolsRef                     = useRef(TOOLS)
   const [stats, setStats]               = useState({ current_devices: null, change_events: null })
   const [initialLoading, setInitial]    = useState(true)
   const [refreshing, setRefreshing]     = useState(false)
@@ -120,6 +120,36 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
       .then((data) => { if (data) setHiddenTools(data.hiddenTools ?? []) })
       .catch(() => {})
   }, [currentUser, token])
+
+  // ── Fetch custom tools (global, from server) ─────────────────────────────
+  const fetchCustomTools = useCallback(() => {
+    if (!token) return
+    fetch('/auth/custom-tools', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setCustomTools(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [token])
+
+  useEffect(() => { fetchCustomTools() }, [fetchCustomTools, toolsVersion])
+
+  // ── Sync toolOrder / healthMap when customTools changes ─────────────────────
+  useEffect(() => {
+    allToolsRef.current = [...TOOLS, ...customTools]
+    const customIds = customTools.map((t) => t.id)
+    setToolOrder((prev) => {
+      const missing = customIds.filter((id) => !prev.includes(id))
+      if (!missing.length) return prev
+      const updated = [...prev, ...missing]
+      localStorage.setItem(keysRef.current.orderKey, JSON.stringify(updated))
+      return updated
+    })
+    setHealthMap((prev) => {
+      const additions = Object.fromEntries(
+        customTools.filter((t) => !(t.id in prev)).map((t) => [t.id, 'checking'])
+      )
+      return Object.keys(additions).length ? { ...prev, ...additions } : prev
+    })
+  }, [customTools])
 
   // Close settings dropdown when clicking outside
   useEffect(() => {
@@ -173,7 +203,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
 
   // ── Tool health checks ──────────────────────────────────────────────────────
   const checkHealth = useCallback(() => {
-    TOOLS.filter((tool) => !tool.placeholder && tool.href && !hiddenTools.includes(tool.id)).forEach((tool) => {
+    allToolsRef.current.filter((tool) => !tool.placeholder && tool.href && !hiddenTools.includes(tool.id)).forEach((tool) => {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 4000)
       fetch(tool.href, {
@@ -303,8 +333,9 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
     setSettingsOpen(false)
   }, [])
 
-  const orderedTools      = toolOrder.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
-  const favTools          = favourites.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
+  const allTools          = [...TOOLS, ...customTools]
+  const orderedTools      = toolOrder.map((id) => allTools.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
+  const favTools          = favourites.map((id) => allTools.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
   const nonFavTools       = orderedTools.filter((t) => !favourites.includes(t.id))
 
   const filteredFav = search
@@ -402,6 +433,12 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, cur
                       onClick={() => { setSettingsOpen(false); onManageUsers(); }}
                     >
                       👤 Manage Users
+                    </button>
+                    <button
+                      className="settings-manage-users-btn"
+                      onClick={() => { setSettingsOpen(false); onManageApps?.(); }}
+                    >
+                      🔧 Manage Apps
                     </button>
                     <div className="settings-divider" />
                   </>

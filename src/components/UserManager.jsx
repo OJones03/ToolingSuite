@@ -10,8 +10,17 @@ export default function UserManager({ token, currentUser, onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [changePw, setChangePw] = useState({}); // { [username]: { value, error, success } }
   const [toolAccess, setToolAccess] = useState({}); // { [username]: { hidden: string[], expanded: bool, saving: bool, error: string, success: string } }
+  const [customTools, setCustomTools] = useState([]);
 
   const authHeader = { Authorization: `Bearer ${token}` };
+  const allTools = [...TOOLS, ...customTools];
+
+  useEffect(() => {
+    fetch('/auth/custom-tools', { headers: authHeader })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setCustomTools(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   async function fetchUsers() {
     setLoadError('');
@@ -203,7 +212,7 @@ export default function UserManager({ token, currentUser, onClose }) {
                         <div className="um-tools-panel">
                           <p className="um-hint">Uncheck tools to hide them from this user.</p>
                           <ul className="um-tools-list">
-                            {TOOLS.map((tool) => {
+                            {allTools.map((tool) => {
                               const isHidden = (toolAccess[u.username]?.hidden ?? []).includes(tool.id);
                               return (
                                 <li key={tool.id} className="um-tools-item">
