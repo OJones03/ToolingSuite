@@ -3,6 +3,7 @@ import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import UserManager from './components/UserManager';
 import AppManager from './components/AppManager';
+import RequestToolModal from './components/RequestToolModal';
 import './App.css';
 
 function decodeJwtPayload(token) {
@@ -20,6 +21,7 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [userManagerOpen, setUserManagerOpen] = useState(false);
   const [appManagerOpen, setAppManagerOpen] = useState(false);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [toolsVersion, setToolsVersion] = useState(0);
 
   const currentUser = token ? decodeJwtPayload(token)?.sub : null;
@@ -72,6 +74,7 @@ function App() {
         currentUser={currentUser}
         onManageUsers={() => setUserManagerOpen(true)}
         onManageApps={() => setAppManagerOpen(true)}
+        onRequestTool={() => setRequestModalOpen(true)}
         toolsVersion={toolsVersion}
       />
       {userManagerOpen && (
@@ -86,6 +89,12 @@ function App() {
           token={token}
           onClose={() => setAppManagerOpen(false)}
           onToolsChanged={() => setToolsVersion((v) => v + 1)}
+        />
+      )}
+      {requestModalOpen && (
+        <RequestToolModal
+          token={token}
+          onClose={() => setRequestModalOpen(false)}
         />
       )}
     </>
