@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import StatCard from './StatCard'
 import ToolCard from './ToolCard'
 import Toast from './Toast'
@@ -147,7 +147,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
 
   // ── Sync toolOrder / healthMap when customTools changes ─────────────────────
   useEffect(() => {
-    allToolsRef.current = [...TOOLS, ...customTools]
+    allToolsRef.current = allTools
     const customIds = customTools.map((t) => t.id)
     setToolOrder((prev) => {
       const missing = customIds.filter((id) => !prev.includes(id))
@@ -210,13 +210,14 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
   useEffect(() => {
     const update = () => setTimeAgoLabel(timeAgo(lastUpdated))
     update()
-    const id = setInterval(update, 10_000)
+    const id = setInterval(update, 60_000)
     return () => clearInterval(id)
   }, [lastUpdated])
 
   // ── Tool health checks ──────────────────────────────────────────────────────
   const checkHealth = useCallback(() => {
-    allToolsRef.current.filter((tool) => !tool.placeholder && tool.href && !hiddenTools.includes(tool.id)).forEach((tool) => {
+    allToolsRef.current.filter((tool) => !tool.placeholder && tool.href && !hiddenTools.includes(tool.id)).forEach((tool, index) => {
+      setTimeout(() => {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 4000)
       fetch(tool.href, {
@@ -237,6 +238,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
             setUptimeHistory((prev) => ({ ...prev, [tool.id]: [...(prev[tool.id] ?? []).slice(-47), false] }))
           }
         })
+      }, index * 300) // stagger each check 300ms apart to avoid network bursts
     })
   }, [hiddenTools])
 
@@ -356,38 +358,62 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
     setSettingsOpen(false)
   }, [])
 
-  const allTools          = [...TOOLS, ...customTools]
-  const orderedTools      = toolOrder.map((id) => allTools.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
-  const favTools          = favourites.map((id) => allTools.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id))
-  const nonFavTools       = orderedTools.filter((t) => !favourites.includes(t.id))
+  const allTools = useMemo(() => [...TOOLS, ...customTools], [customTools])
 
-  const filteredFav = search
-    ? favTools.filter(
-        (t) =>
-          t.title.toLowerCase().includes(search.toLowerCase()) ||
-          t.description.toLowerCase().includes(search.toLowerCase()) ||
-          t.category.toLowerCase().includes(search.toLowerCase())
-      )
-    : favTools
+  const orderedTools = useMemo(
+    () => toolOrder.map((id) => allTools.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id)),
+    [toolOrder, allTools, hiddenTools]
+  )
 
-  const filteredNonFav = search
-    ? nonFavTools.filter(
-        (t) =>
-          t.title.toLowerCase().includes(search.toLowerCase()) ||
-          t.description.toLowerCase().includes(search.toLowerCase()) ||
-          t.category.toLowerCase().includes(search.toLowerCase())
-      )
-    : nonFavTools
+  const favTools = useMemo(
+    () => favourites.map((id) => allTools.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id)),
+    [favourites, allTools, hiddenTools]
+  )
 
-  const allCategories      = [...new Set(nonFavTools.map((t) => t.category))]
-  const filteredCategories = search ? [...new Set(filteredNonFav.map((t) => t.category))] : allCategories
-  const isCrossSection          = !!(activeDragSection && activeDragSection !== 'favourites')
+  const nonFavTools = useMemo(
+    () => orderedTools.filter((t) => !favourites.includes(t.id)),
+    [orderedTools, favourites]
+  )
+
+  const filteredFav = useMemo(() => {
+    if (!search) return favTools
+    const q = search.toLowerCase()
+    return favTools.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q) ||
+        t.category.toLowerCase().includes(q)
+    )
+  }, [search, favTools])
+
+  const filteredNonFav = useMemo(() => {
+    if (!search) return nonFavTools
+    const q = search.toLowerCase()
+    return nonFavTools.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q) ||
+        t.category.toLowerCase().includes(q)
+    )
+  }, [search, nonFavTools])
+
+  const allCategories = useMemo(
+    () => [...new Set(nonFavTools.map((t) => t.category))],
+    [nonFavTools]
+  )
+
+  const filteredCategories = useMemo(
+    () => search ? [...new Set(filteredNonFav.map((t) => t.category))] : allCategories,
+    [search, filteredNonFav, allCategories]
+  )
+
+  const isCrossSection           = !!(activeDragSection && activeDragSection !== 'favourites')
   const isDraggingFromFavourites = activeDragSection === 'favourites'
 
-  const statCards = [
+  const statCards = useMemo(() => [
     { label: 'Current Devices', value: stats.current_devices, icon: '🟢' },
     { label: 'Change Events',   value: stats.change_events,   icon: '🔄' },
-  ]
+  ], [stats.current_devices, stats.change_events])
 
   return (
     <div className="dashboard">

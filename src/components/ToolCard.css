@@ -10,6 +10,7 @@
   transition: border-color 0.15s, transform 0.15s;
   height: 100%;
   box-sizing: border-box;
+  contain: layout style;
 }
 
 .tool-card:hover {
@@ -116,12 +117,18 @@
 
 .status--online .tool-card__status-dot {
   box-shadow: 0 0 4px var(--status-active);
-  animation: status-pulse 2s ease-in-out infinite;
+  animation: status-pulse 3s ease-in-out infinite;
 }
 
 @keyframes status-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status--online .tool-card__status-dot {
+    animation: none;
+  }
 }
 
 .status--offline {
