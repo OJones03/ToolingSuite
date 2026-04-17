@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import StatCard from './StatCard'
 import ToolCard from './ToolCard'
 import Toast from './Toast'
+import AnnouncementBanner from './AnnouncementBanner'
 import elementLogo from '../assets/elementlogo.png'
 import { TOOLS } from '../tools'
 import './Dashboard.css'
@@ -66,7 +67,7 @@ function timeAgo(date) {
   return `${Math.floor(secs / 60)}m ago`
 }
 
-export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onManageApps, currentUser, toolsVersion }) {
+export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onManageApps, onRequestTool, currentUser, toolsVersion }) {
   // Per-user localStorage keys — stable for the lifetime of the session
   const orderKey   = mkKey('dashboard-tool-order', currentUser)
   const favsKey    = mkKey('dashboard-favourites',  currentUser)
@@ -86,6 +87,9 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
   const [healthMap, setHealthMap]       = useState(() =>
     Object.fromEntries(TOOLS.map((t) => [t.id, 'checking']))
   )
+  const [uptimeHistory, setUptimeHistory] = useState({})
+  const [announcement, setAnnouncement]   = useState(null)
+  const [dismissedAt, setDismissedAt]     = useState(() => localStorage.getItem('dismissed-announcement'))
   const [settingsOpen, setSettingsOpen]           = useState(false)
   const [toolOrder, setToolOrder]                 = useState(() => getInitialOrder(orderKey))
   const [favourites, setFavourites]               = useState(() => getInitialFavourites(favsKey))
@@ -131,6 +135,15 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
   }, [token])
 
   useEffect(() => { fetchCustomTools() }, [fetchCustomTools, toolsVersion])
+
+  // ── Fetch announcement ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!token) return
+    fetch('/auth/announcement', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setAnnouncement(data) })
+      .catch(() => {})
+  }, [token])
 
   // ── Sync toolOrder / healthMap when customTools changes ─────────────────────
   useEffect(() => {
@@ -215,11 +228,13 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
         .then(() => {
           clearTimeout(timer)
           setHealthMap((prev) => ({ ...prev, [tool.id]: 'online' }))
+          setUptimeHistory((prev) => ({ ...prev, [tool.id]: [...(prev[tool.id] ?? []).slice(-47), true] }))
         })
         .catch((err) => {
           clearTimeout(timer)
           if (err.name !== 'AbortError') {
             setHealthMap((prev) => ({ ...prev, [tool.id]: 'offline' }))
+            setUptimeHistory((prev) => ({ ...prev, [tool.id]: [...(prev[tool.id] ?? []).slice(-47), false] }))
           }
         })
     })
@@ -233,6 +248,14 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const dismissToast = useCallback(() => setToast(null), [])
+
+  const handleDismissAnnouncement = useCallback(() => {
+    if (!announcement) return
+    localStorage.setItem('dismissed-announcement', announcement.createdAt)
+    setDismissedAt(announcement.createdAt)
+  }, [announcement])
+
+  const showAnnouncement = announcement && dismissedAt !== announcement.createdAt
 
   const handleDragStart = useCallback((section, index, id) => {
     dragSrcSection.current = section
@@ -469,6 +492,13 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
         </div>
       </header>
 
+      {showAnnouncement && (
+        <AnnouncementBanner
+          announcement={announcement}
+          onDismiss={handleDismissAnnouncement}
+        />
+      )}
+
       <main className="dashboard__main">
 
         {/* ── Overview ─────────────────────────────────────────────────────── */}
@@ -529,6 +559,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
                 <ToolCard
                           {...t}
                           status={healthMap[t.id]}
+                          uptimeHistory={uptimeHistory[t.id]}
                           editMode={editMode}
                         />
                       </div>
@@ -546,13 +577,22 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
             <h2 className="dashboard__section-title">Tools</h2>
             <div className="dashboard__section-actions">
               {!search && (
-                <button
-                  className={`dashboard__edit-btn${editMode ? ' dashboard__edit-btn--active' : ''}`}
-                  onClick={() => setEditMode((e) => !e)}
-                  title={editMode ? 'Done editing layout' : 'Edit layout'}
-                >
-                  {editMode ? '✓ Done' : '✏ Edit Layout'}
-                </button>
+                <>
+                  <button
+                    className={`dashboard__edit-btn${editMode ? ' dashboard__edit-btn--active' : ''}`}
+                    onClick={() => setEditMode((e) => !e)}
+                    title={editMode ? 'Done editing layout' : 'Edit layout'}
+                  >
+                    {editMode ? '✓ Done' : '✏ Edit Layout'}
+                  </button>
+                  <button
+                    className="dashboard__request-btn"
+                    onClick={onRequestTool}
+                    title="Request a new tool to be added"
+                  >
+                    + Request Tool
+                  </button>
+                </>
               )}
               <div className="dashboard__search-wrapper">
                 <span className="dashboard__search-icon" aria-hidden="true">🔎</span>
@@ -608,6 +648,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
                           <ToolCard
                             {...t}
                             status={healthMap[t.id]}
+                            uptimeHistory={uptimeHistory[t.id]}
                             editMode={editMode}
                           />
                         </div>

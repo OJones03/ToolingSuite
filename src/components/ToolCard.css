@@ -164,6 +164,22 @@
   font-style: italic;
 }
 
+/* ── Uptime sparkline ── */
+.tool-card__uptime {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+
+.tool-card__uptime-pct {
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
 /* ── Edit / drag mode ── */
 .tool-card--edit {
   user-select: none;

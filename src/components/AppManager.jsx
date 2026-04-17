@@ -14,6 +14,16 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
   const [editError, setEditError] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
 
+  // Announcement state
+  const [announcement, setAnnouncement] = useState(null);
+  const [announcementText, setAnnouncementText] = useState('');
+  const [announcementSaving, setAnnouncementSaving] = useState(false);
+  const [announcementMsg, setAnnouncementMsg] = useState('');
+
+  // Tool request queue state
+  const [requests, setRequests] = useState([]);
+  const [requestsError, setRequestsError] = useState('');
+
   const authHeader = { Authorization: `Bearer ${token}` };
 
   async function fetchTools() {
@@ -27,7 +37,94 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
     }
   }
 
-  useEffect(() => { fetchTools(); }, []);
+  async function fetchAnnouncement() {
+    try {
+      const res = await fetch('/auth/announcement', { headers: authHeader });
+      const data = res.ok ? await res.json() : null;
+      setAnnouncement(data);
+      setAnnouncementText(data?.message ?? '');
+    } catch {}
+  }
+
+  async function fetchRequests() {
+    setRequestsError('');
+    try {
+      const res = await fetch('/auth/tool-requests', { headers: authHeader });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRequests(await res.json());
+    } catch (e) {
+      setRequestsError(e.message);
+    }
+  }
+
+  useEffect(() => { fetchTools(); fetchAnnouncement(); fetchRequests(); }, []);
+
+  async function handleSaveAnnouncement(e) {
+    e.preventDefault();
+    setAnnouncementSaving(true); setAnnouncementMsg('');
+    try {
+      const res = await fetch('/auth/announcement', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ message: announcementText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setAnnouncement(data);
+      setAnnouncementMsg('Announcement saved.');
+    } catch (e) {
+      setAnnouncementMsg(`Error: ${e.message}`);
+    } finally {
+      setAnnouncementSaving(false);
+    }
+  }
+
+  async function handleClearAnnouncement() {
+    if (!window.confirm('Clear the current announcement?')) return;
+    try {
+      await fetch('/auth/announcement', { method: 'DELETE', headers: authHeader });
+      setAnnouncement(null);
+      setAnnouncementText('');
+      setAnnouncementMsg('Announcement cleared.');
+    } catch (e) {
+      setAnnouncementMsg(`Error: ${e.message}`);
+    }
+  }
+
+  async function handleApproveRequest(id) {
+    try {
+      const res = await fetch(`/auth/tool-requests/${encodeURIComponent(id)}/approve`, {
+        method: 'PUT',
+        headers: authHeader,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await fetchRequests();
+      await fetchTools();
+      onToolsChanged?.();
+    } catch (e) {
+      alert(`Approve failed: ${e.message}`);
+    }
+  }
+
+  async function handleRejectRequest(id, title) {
+    if (!window.confirm(`Reject request for "${title}"?`)) return;
+    try {
+      const res = await fetch(`/auth/tool-requests/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: authHeader,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await fetchRequests();
+    } catch (e) {
+      alert(`Reject failed: ${e.message}`);
+    }
+  }
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -129,6 +226,77 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
           </div>
         </div>
         <div className="modal-body">
+
+          {/* ── Announcement banner ── */}
+          <section className="um-section">
+            <h3 className="um-section-title">Announcement Banner</h3>
+            {announcement ? (
+              <div className="am-announcement-current">
+                <p className="am-announcement-text">"{announcement.message}"</p>
+                <p className="um-hint">Posted by {announcement.author} · {new Date(announcement.createdAt).toLocaleDateString()}</p>
+              </div>
+            ) : (
+              <p className="um-hint">No active announcement.</p>
+            )}
+            <form className="um-form" onSubmit={handleSaveAnnouncement} style={{ marginTop: '0.75rem' }}>
+              <textarea
+                className="um-input am-input-full am-textarea"
+                placeholder="e.g. Maintenance tonight at 22:00…"
+                value={announcementText}
+                onChange={(e) => setAnnouncementText(e.target.value)}
+                maxLength={500}
+                rows={2}
+              />
+              <div className="am-edit-actions">
+                <button type="submit" className="um-pw-btn" disabled={announcementSaving || !announcementText.trim()}>
+                  {announcementSaving ? 'Saving…' : announcement ? 'Update' : 'Post'}
+                </button>
+                {announcement && (
+                  <button type="button" className="um-delete-btn" onClick={handleClearAnnouncement}>
+                    Clear
+                  </button>
+                )}
+                {announcementMsg && (
+                  <span className={announcementMsg.startsWith('Error') ? 'um-error um-inline-msg' : 'um-success um-inline-msg'}>
+                    {announcementMsg}
+                  </span>
+                )}
+              </div>
+            </form>
+          </section>
+
+          {/* ── Pending tool requests ── */}
+          <section className="um-section">
+            <h3 className="um-section-title">
+              Pending Tool Requests
+              {requests.length > 0 && (
+                <span className="um-tools-hidden-count" style={{ marginLeft: '0.5rem' }}>{requests.length}</span>
+              )}
+            </h3>
+            {requestsError && <p className="um-error">{requestsError}</p>}
+            {!requestsError && requests.length === 0 && <p className="um-hint">No pending requests.</p>}
+            <ul className="um-user-list">
+              {requests.map((r) => (
+                <li key={r.id} className="um-user-row am-tool-row">
+                  <div className="am-tool-info">
+                    <div className="am-tool-meta">
+                      <span className="um-username">{r.title}</span>
+                      <span className="am-tool-desc">{r.description}</span>
+                      {r.href && <span className="am-tool-desc" style={{ opacity: 0.6 }}>{r.href}</span>}
+                    </div>
+                    <div className="am-tool-badges">
+                      <span className="am-category-badge">{r.category}</span>
+                      <span className="um-hint" style={{ fontSize: '0.72rem' }}>by {r.submittedBy}</span>
+                    </div>
+                  </div>
+                  <div className="am-tool-actions">
+                    <button className="um-create-btn" style={{ fontSize: '0.78rem', padding: '0.25rem 0.6rem' }} onClick={() => handleApproveRequest(r.id)}>Approve</button>
+                    <button className="um-delete-btn" onClick={() => handleRejectRequest(r.id, r.title)}>Reject</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           {/* ── Existing custom apps ── */}
           <section className="um-section">

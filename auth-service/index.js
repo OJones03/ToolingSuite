@@ -290,6 +290,133 @@ app.put("/auth/users/:username/tools", authenticateToken, requireAdmin, (req, re
   res.sendStatus(204);
 });
 
+// ── Announcement store ────────────────────────────────────
+const ANNOUNCEMENT_FILE = path.join(DATA_DIR, 'announcement.json');
+
+function loadAnnouncement() {
+  try {
+    return JSON.parse(fs.readFileSync(ANNOUNCEMENT_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function saveAnnouncement(data) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(ANNOUNCEMENT_FILE, JSON.stringify(data, null, 2));
+}
+
+// Get current announcement (any authenticated user)
+app.get('/auth/announcement', authenticateToken, (req, res) => {
+  res.json(loadAnnouncement());
+});
+
+// Set / update announcement (admin only)
+app.put('/auth/announcement', authenticateToken, requireAdmin, (req, res) => {
+  const { message } = req.body ?? {};
+  if (!message || !String(message).trim()) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+  const announcement = {
+    message: String(message).trim().slice(0, 500),
+    author: req.user.sub,
+    createdAt: new Date().toISOString(),
+  };
+  saveAnnouncement(announcement);
+  res.json(announcement);
+});
+
+// Clear announcement (admin only)
+app.delete('/auth/announcement', authenticateToken, requireAdmin, (req, res) => {
+  try { fs.unlinkSync(ANNOUNCEMENT_FILE); } catch {}
+  res.sendStatus(204);
+});
+
+// ── Tool request queue ────────────────────────────────────
+const TOOL_REQUESTS_FILE = path.join(DATA_DIR, 'tool-requests.json');
+
+function loadToolRequests() {
+  try {
+    return JSON.parse(fs.readFileSync(TOOL_REQUESTS_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+function saveToolRequests(requests) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(TOOL_REQUESTS_FILE, JSON.stringify(requests, null, 2));
+}
+
+// Submit a tool request (any authenticated user)
+app.post('/auth/tool-requests', authenticateToken, (req, res) => {
+  const { title, description, href, category } = req.body ?? {};
+  if (!title || !description || !category) {
+    return res.status(400).json({ error: 'title, description and category are required' });
+  }
+  const requests = loadToolRequests();
+  const id = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const request = {
+    id,
+    title: String(title).slice(0, 100),
+    description: String(description).slice(0, 500),
+    href: href ? String(href).slice(0, 500) : null,
+    category: String(category).slice(0, 50),
+    submittedBy: req.user.sub,
+    submittedAt: new Date().toISOString(),
+  };
+  requests.push(request);
+  saveToolRequests(requests);
+  res.status(201).json(request);
+});
+
+// List all tool requests (admin only)
+app.get('/auth/tool-requests', authenticateToken, requireAdmin, (req, res) => {
+  res.json(loadToolRequests());
+});
+
+// Approve a request — converts it to a custom tool (admin only)
+app.put('/auth/tool-requests/:id/approve', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const requests = loadToolRequests();
+  const idx = requests.findIndex((r) => r.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Request not found' });
+  const request = requests[idx];
+
+  const tools = loadCustomTools();
+  const toolId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const hrefVal = request.href || null;
+  const tool = {
+    id: toolId,
+    title: request.title,
+    icon: '🔧',
+    description: request.description,
+    href: hrefVal,
+    target: hrefVal ? '_blank' : null,
+    badge: request.category,
+    category: request.category,
+    placeholder: !hrefVal,
+    custom: true,
+  };
+  tools.push(tool);
+  saveCustomTools(tools);
+
+  requests.splice(idx, 1);
+  saveToolRequests(requests);
+  res.status(201).json(tool);
+});
+
+// Reject / delete a tool request (admin only)
+app.delete('/auth/tool-requests/:id', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const requests = loadToolRequests();
+  const idx = requests.findIndex((r) => r.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Request not found' });
+  requests.splice(idx, 1);
+  saveToolRequests(requests);
+  res.sendStatus(204);
+});
+
 app.listen(PORT, () => {
   console.log(`Auth service running on port ${PORT}`);
 });
