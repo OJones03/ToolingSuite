@@ -1,6 +1,7 @@
+import { memo } from 'react'
 import './StatCard.css'
 
-export default function StatCard({ label, value, icon, loading }) {
+const StatCard = memo(function StatCard({ label, value, icon, loading }) {
   if (loading) {
     return (
       <div className="stat-card stat-card--skeleton" aria-hidden="true">
@@ -24,4 +25,6 @@ export default function StatCard({ label, value, icon, loading }) {
       </div>
     </div>
   )
-}
+})
+
+export default StatCard

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import './ToolCard.css'
 
 const STATUS_CONFIG = {
@@ -36,7 +37,7 @@ function UptimeSparkline({ history }) {
   )
 }
 
-export default function ToolCard({ title, description, icon, href, badge, target, status, uptimeHistory, placeholder, editMode }) {
+const ToolCard = memo(function ToolCard({ title, description, icon, href, badge, target, status, uptimeHistory, placeholder, editMode }) {
   const s = STATUS_CONFIG[status]
 
   return (
@@ -75,4 +76,6 @@ export default function ToolCard({ title, description, icon, href, badge, target
       )}
     </div>
   )
-}
+})
+
+export default ToolCard
