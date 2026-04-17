@@ -25,6 +25,10 @@ COPY --from=build /app/dist /usr/share/nginx/html
 COPY --from=auth-deps /auth/node_modules /auth/node_modules
 COPY auth-service/index.js /auth/index.js
 
+# Create data directory for user store and declare it as a volume mount point
+RUN mkdir -p /auth/data
+VOLUME ["/auth/data"]
+
 # Copy nginx config template and entrypoint
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /app-entrypoint.sh

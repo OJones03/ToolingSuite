@@ -18,3 +18,5 @@ services:
 
 volumes:
   auth-data:
+    external: true
+    name: shared-auth-data
