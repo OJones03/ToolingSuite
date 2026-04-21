@@ -151,8 +151,9 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
 
   // ── Sync toolOrder / healthMap when any tools change ───────────────────────
   useEffect(() => {
-    allToolsRef.current = allTools
-    const allIds = allTools.map((t) => t.id)
+    const combined = [...defaultTools, ...customTools]
+    allToolsRef.current = combined
+    const allIds = combined.map((t) => t.id)
     setToolOrder((prev) => {
       const missing = allIds.filter((id) => !prev.includes(id))
       if (!missing.length) return prev
@@ -162,11 +163,11 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
     })
     setHealthMap((prev) => {
       const additions = Object.fromEntries(
-        allTools.filter((t) => !(t.id in prev)).map((t) => [t.id, 'checking'])
+        combined.filter((t) => !(t.id in prev)).map((t) => [t.id, 'checking'])
       )
       return Object.keys(additions).length ? { ...prev, ...additions } : prev
     })
-  }, [allTools])
+  }, [defaultTools, customTools])
 
   // Close settings dropdown when clicking outside
   useEffect(() => {

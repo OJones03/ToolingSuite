@@ -387,6 +387,7 @@ body {
 
 .modal-body {
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem 1.25rem;
 }
 
@@ -394,7 +395,7 @@ body {
    Auth — User Manager modal
    ============================================================ */
 .user-manager-panel {
-  max-width: 640px;
+  max-width: 860px;
   width: 100%;
 }
 

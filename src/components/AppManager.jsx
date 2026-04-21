@@ -361,7 +361,6 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
                   <div className="am-tool-info">
                     <div className="am-tool-meta">
                       <span className="um-username">{r.title}</span>
-                      <span className="am-tool-desc">{r.description}</span>
                       {r.href && <span className="am-tool-desc" style={{ opacity: 0.6 }}>{r.href}</span>}
                     </div>
                     <div className="am-tool-badges">
@@ -448,7 +447,6 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
                         <span className="am-tool-icon" aria-hidden="true">{t.icon}</span>
                         <div className="am-tool-meta">
                           <span className="um-username">{t.title}</span>
-                          <span className="am-tool-desc">{t.description}</span>
                         </div>
                         <div className="am-tool-badges">
                           <span className="um-role-badge um-role-user">{t.badge}</span>
@@ -540,7 +538,6 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
                         <span className="am-tool-icon" aria-hidden="true">{t.icon}</span>
                         <div className="am-tool-meta">
                           <span className="um-username">{t.title}</span>
-                          <span className="am-tool-desc">{t.description}</span>
                         </div>
                         <div className="am-tool-badges">
                           <span className="um-role-badge um-role-user">{t.badge}</span>
