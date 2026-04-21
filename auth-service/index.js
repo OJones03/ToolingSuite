@@ -417,6 +417,151 @@ app.delete('/auth/tool-requests/:id', authenticateToken, requireAdmin, (req, res
   res.sendStatus(204);
 });
 
+// ── Default tools store ───────────────────────────────────────────────────────
+const DEFAULT_TOOLS_FILE = path.join(DATA_DIR, 'default-tools.json');
+
+const SEED_DEFAULT_TOOLS = [
+  {
+    id: 'device-surveyor',
+    title: 'Device Surveyor',
+    description: 'Scan and inventory all devices on the network. View hardware details, OS information, open ports, and track device history over time.',
+    icon: '🔍',
+    href: null,
+    target: null,
+    badge: 'Surveyor',
+    category: 'Discovery',
+    placeholder: true,
+  },
+  {
+    id: 'device-monitoring-api',
+    title: 'Device Monitoring API',
+    description: 'REST API endpoint exposing live device statistics including current device count and change events tracked by the monitoring service.',
+    icon: '🌐',
+    href: '/api/devices/stats',
+    target: '_blank',
+    badge: 'API',
+    category: 'Discovery',
+    placeholder: false,
+  },
+  {
+    id: 'nmap-monitor',
+    title: 'Nmap Monitor',
+    description: 'Run continuous or scheduled Nmap scans across your network. Detect new hosts, monitor port changes, and receive alerts on anomalies.',
+    icon: '📡',
+    href: null,
+    target: null,
+    badge: 'Monitor',
+    category: 'Monitoring',
+    placeholder: true,
+  },
+  {
+    id: 'rundeck',
+    title: 'Rundeck',
+    description: 'Automate and schedule operational tasks across your infrastructure. Run jobs, manage workflows, and track execution history.',
+    icon: '⚙️',
+    href: null,
+    target: null,
+    badge: 'Automation',
+    category: 'Automation',
+    placeholder: true,
+  },
+  {
+    id: 'rundeck-outputs',
+    title: 'Rundeck Outputs',
+    description: 'Browse and search historical Rundeck job execution outputs. Quickly review logs, filter by job or node, and diagnose past automation runs.',
+    icon: '📋',
+    href: null,
+    target: null,
+    badge: 'Automation',
+    category: 'Automation',
+    placeholder: true,
+  },
+  {
+    id: 'naming-tool',
+    title: 'Naming Tool',
+    description: "Generate and validate consistent hostnames, resource names, and identifiers based on your organisation's naming conventions and policies.",
+    icon: '🏷️',
+    href: null,
+    target: null,
+    badge: 'Utility',
+    category: 'Utilities',
+    placeholder: true,
+  },
+  {
+    id: 'generic-api-docs',
+    title: 'API Docs',
+    description: 'Centralised API documentation portal. Browse endpoint references, authentication guides, and request/response examples for internal services.',
+    icon: '📖',
+    href: null,
+    target: null,
+    badge: 'Docs',
+    category: 'Documentation',
+    placeholder: true,
+  },
+];
+
+function loadDefaultTools() {
+  try {
+    return JSON.parse(fs.readFileSync(DEFAULT_TOOLS_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function saveDefaultTools(tools) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(DEFAULT_TOOLS_FILE, JSON.stringify(tools, null, 2));
+}
+
+// Bootstrap default tools from seed data if not yet configured
+function bootstrapDefaultTools() {
+  if (loadDefaultTools() !== null) return;
+  saveDefaultTools(SEED_DEFAULT_TOOLS);
+  console.log('Bootstrapped default-tools.json from seed data');
+}
+
+bootstrapDefaultTools();
+
+// Get all default tools (any authenticated user)
+app.get('/auth/default-tools', authenticateToken, (req, res) => {
+  res.json(loadDefaultTools() ?? []);
+});
+
+// Update a default tool (admin only)
+app.put('/auth/default-tools/:id', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { title, icon, description, href, badge, category } = req.body ?? {};
+  const tools = loadDefaultTools() ?? [];
+  const idx = tools.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Tool not found' });
+  const existing = tools[idx];
+  const hrefVal = href !== undefined ? (href || null) : existing.href;
+  tools[idx] = {
+    ...existing,
+    title: title ? String(title).slice(0, 100) : existing.title,
+    icon: icon !== undefined ? String(icon || '🔧').slice(0, 10) : existing.icon,
+    description: description ? String(description).slice(0, 500) : existing.description,
+    href: hrefVal,
+    target: hrefVal ? '_blank' : null,
+    badge: badge ? String(badge).slice(0, 30) : existing.badge,
+    category: category ? String(category).slice(0, 50) : existing.category,
+    placeholder: !hrefVal,
+  };
+  saveDefaultTools(tools);
+  res.json(tools[idx]);
+});
+
+// Delete a default tool (admin only)
+app.delete('/auth/default-tools/:id', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const tools = loadDefaultTools() ?? [];
+  const idx = tools.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Tool not found' });
+  tools.splice(idx, 1);
+  saveDefaultTools(tools);
+  res.sendStatus(204);
+});
+
 app.listen(PORT, () => {
   console.log(`Auth service running on port ${PORT}`);
 });

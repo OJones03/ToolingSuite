@@ -14,6 +14,14 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
   const [editError, setEditError] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
 
+  // Default tools state
+  const [defaultTools, setDefaultTools] = useState([]);
+  const [defaultLoadError, setDefaultLoadError] = useState('');
+  const [editingDefaultId, setEditingDefaultId] = useState(null);
+  const [editDefaultForm, setEditDefaultForm] = useState(EMPTY_FORM);
+  const [editDefaultError, setEditDefaultError] = useState('');
+  const [editDefaultSubmitting, setEditDefaultSubmitting] = useState(false);
+
   // Announcement state
   const [announcement, setAnnouncement] = useState(null);
   const [announcementText, setAnnouncementText] = useState('');
@@ -37,6 +45,17 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
     }
   }
 
+  async function fetchDefaultTools() {
+    setDefaultLoadError('');
+    try {
+      const res = await fetch('/auth/default-tools', { headers: authHeader });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDefaultTools(await res.json());
+    } catch (e) {
+      setDefaultLoadError(e.message);
+    }
+  }
+
   async function fetchAnnouncement() {
     try {
       const res = await fetch('/auth/announcement', { headers: authHeader });
@@ -57,7 +76,7 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
     }
   }
 
-  useEffect(() => { fetchTools(); fetchAnnouncement(); fetchRequests(); }, []);
+  useEffect(() => { fetchTools(); fetchAnnouncement(); fetchRequests(); fetchDefaultTools(); }, []);
 
   async function handleSaveAnnouncement(e) {
     e.preventDefault();
@@ -166,6 +185,67 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
       category: tool.category,
     });
     setEditError('');
+  }
+
+  function startEditDefault(tool) {
+    setEditingDefaultId(tool.id);
+    setEditDefaultForm({
+      title: tool.title,
+      icon: tool.icon,
+      description: tool.description,
+      href: tool.href || '',
+      badge: tool.badge,
+      category: tool.category,
+    });
+    setEditDefaultError('');
+  }
+
+  async function handleEditDefault(e) {
+    e.preventDefault();
+    setEditDefaultError(''); setEditDefaultSubmitting(true);
+    try {
+      const res = await fetch(`/auth/default-tools/${encodeURIComponent(editingDefaultId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({
+          title: editDefaultForm.title,
+          icon: editDefaultForm.icon || '🔧',
+          description: editDefaultForm.description,
+          href: editDefaultForm.href || null,
+          badge: editDefaultForm.badge,
+          category: editDefaultForm.category,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setEditingDefaultId(null);
+      await fetchDefaultTools();
+      onToolsChanged?.();
+    } catch (e) {
+      setEditDefaultError(e.message);
+    } finally {
+      setEditDefaultSubmitting(false);
+    }
+  }
+
+  async function handleDeleteDefault(id, title) {
+    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/auth/default-tools/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: authHeader,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await fetchDefaultTools();
+      onToolsChanged?.();
+    } catch (e) {
+      alert(`Delete failed: ${e.message}`);
+    }
   }
 
   async function handleEdit(e) {
@@ -293,6 +373,98 @@ export default function AppManager({ token, onClose, onToolsChanged }) {
                     <button className="um-create-btn" style={{ fontSize: '0.78rem', padding: '0.25rem 0.6rem' }} onClick={() => handleApproveRequest(r.id)}>Approve</button>
                     <button className="um-delete-btn" onClick={() => handleRejectRequest(r.id, r.title)}>Reject</button>
                   </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* ── Default apps ── */}
+          <section className="um-section">
+            <h3 className="um-section-title">Default Apps</h3>
+            {defaultLoadError && <p className="um-error">{defaultLoadError}</p>}
+            {!defaultLoadError && defaultTools.length === 0 && <p className="um-hint">No default apps (all have been deleted).</p>}
+            <ul className="um-user-list">
+              {defaultTools.map((t) => (
+                <li key={t.id} className="um-user-row am-tool-row">
+                  {editingDefaultId === t.id ? (
+                    <form className="am-edit-form" onSubmit={handleEditDefault} autoComplete="off">
+                      <div className="am-field-grid">
+                        <input
+                          className="um-input"
+                          placeholder="Name *"
+                          value={editDefaultForm.title}
+                          onChange={(e) => setEditDefaultForm((f) => ({ ...f, title: e.target.value }))}
+                          required
+                        />
+                        <input
+                          className="um-input am-input-icon"
+                          placeholder="Icon"
+                          value={editDefaultForm.icon}
+                          onChange={(e) => setEditDefaultForm((f) => ({ ...f, icon: e.target.value }))}
+                          maxLength={10}
+                        />
+                        <input
+                          className="um-input"
+                          placeholder="Badge *"
+                          value={editDefaultForm.badge}
+                          onChange={(e) => setEditDefaultForm((f) => ({ ...f, badge: e.target.value }))}
+                          required
+                        />
+                        <input
+                          className="um-input"
+                          placeholder="Category *"
+                          value={editDefaultForm.category}
+                          onChange={(e) => setEditDefaultForm((f) => ({ ...f, category: e.target.value }))}
+                          required
+                        />
+                      </div>
+                      <input
+                        className="um-input am-input-full"
+                        placeholder="Link URL (leave empty for Coming Soon)"
+                        value={editDefaultForm.href}
+                        onChange={(e) => setEditDefaultForm((f) => ({ ...f, href: e.target.value }))}
+                      />
+                      <textarea
+                        className="um-input am-input-full am-textarea"
+                        placeholder="Description *"
+                        value={editDefaultForm.description}
+                        onChange={(e) => setEditDefaultForm((f) => ({ ...f, description: e.target.value }))}
+                        required
+                        rows={2}
+                      />
+                      {editDefaultError && <p className="um-error um-inline-msg">{editDefaultError}</p>}
+                      <div className="am-edit-actions">
+                        <button type="submit" className="um-pw-btn" disabled={editDefaultSubmitting}>
+                          {editDefaultSubmitting ? 'Saving…' : 'Save Changes'}
+                        </button>
+                        <button type="button" className="um-delete-btn" onClick={() => setEditingDefaultId(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="am-tool-info">
+                        <span className="am-tool-icon" aria-hidden="true">{t.icon}</span>
+                        <div className="am-tool-meta">
+                          <span className="um-username">{t.title}</span>
+                          <span className="am-tool-desc">{t.description}</span>
+                        </div>
+                        <div className="am-tool-badges">
+                          <span className="um-role-badge um-role-user">{t.badge}</span>
+                          <span className="am-category-badge">{t.category}</span>
+                          {t.href
+                            ? <span className="am-status-badge am-status-live">🔗 link</span>
+                            : <span className="am-status-badge am-status-soon">Coming Soon</span>
+                          }
+                        </div>
+                      </div>
+                      <div className="am-tool-actions">
+                        <button className="um-pw-btn" onClick={() => startEditDefault(t)}>Edit</button>
+                        <button className="um-delete-btn" onClick={() => handleDeleteDefault(t.id, t.title)}>Delete</button>
+                      </div>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

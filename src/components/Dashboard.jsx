@@ -4,7 +4,6 @@ import ToolCard from './ToolCard'
 import Toast from './Toast'
 import AnnouncementBanner from './AnnouncementBanner'
 import elementLogo from '../assets/elementlogo.png'
-import { TOOLS } from '../tools'
 import './Dashboard.css'
 
 const STATS_API          = '/api/devices/stats'
@@ -16,14 +15,9 @@ const mkKey = (name, user) => `${name}:${user || '_'}`
 function getInitialOrder(key) {
   try {
     const saved = localStorage.getItem(key)
-    if (saved) {
-      const ids     = JSON.parse(saved)
-      // Keep all saved IDs (custom tools included); ensure static tools present
-      const missing = TOOLS.filter((t) => !ids.includes(t.id)).map((t) => t.id)
-      return [...ids, ...missing]
-    }
+    if (saved) return JSON.parse(saved)
   } catch {}
-  return TOOLS.map((t) => t.id)
+  return []
 }
 
 function getInitialFavourites(key) {
@@ -75,8 +69,9 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
   const themeKey   = mkKey('dashboard-theme',       currentUser)
 
   const [hiddenTools, setHiddenTools]   = useState([])
+  const [defaultTools, setDefaultTools] = useState([])
   const [customTools, setCustomTools]   = useState([])
-  const allToolsRef                     = useRef(TOOLS)
+  const allToolsRef                     = useRef([])
   const [stats, setStats]               = useState({ current_devices: null, change_events: null })
   const [initialLoading, setInitial]    = useState(true)
   const [refreshing, setRefreshing]     = useState(false)
@@ -84,9 +79,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
   const [lastUpdated, setLastUpdated]   = useState(null)
   const [timeAgoLabel, setTimeAgoLabel] = useState(null)
   const [search, setSearch]             = useState('')
-  const [healthMap, setHealthMap]       = useState(() =>
-    Object.fromEntries(TOOLS.map((t) => [t.id, 'checking']))
-  )
+  const [healthMap, setHealthMap]       = useState({})
   const [uptimeHistory, setUptimeHistory] = useState({})
   const [announcement, setAnnouncement]   = useState(null)
   const [dismissedAt, setDismissedAt]     = useState(() => localStorage.getItem('dismissed-announcement'))
@@ -125,6 +118,17 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
       .catch(() => {})
   }, [currentUser, token])
 
+  // ── Fetch default tools (server-managed, from server) ───────────────────
+  const fetchDefaultTools = useCallback(() => {
+    if (!token) return
+    fetch('/auth/default-tools', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setDefaultTools(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [token])
+
+  useEffect(() => { fetchDefaultTools() }, [fetchDefaultTools, toolsVersion])
+
   // ── Fetch custom tools (global, from server) ─────────────────────────────
   const fetchCustomTools = useCallback(() => {
     if (!token) return
@@ -145,12 +149,12 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
       .catch(() => {})
   }, [token])
 
-  // ── Sync toolOrder / healthMap when customTools changes ─────────────────────
+  // ── Sync toolOrder / healthMap when any tools change ───────────────────────
   useEffect(() => {
     allToolsRef.current = allTools
-    const customIds = customTools.map((t) => t.id)
+    const allIds = allTools.map((t) => t.id)
     setToolOrder((prev) => {
-      const missing = customIds.filter((id) => !prev.includes(id))
+      const missing = allIds.filter((id) => !prev.includes(id))
       if (!missing.length) return prev
       const updated = [...prev, ...missing]
       localStorage.setItem(keysRef.current.orderKey, JSON.stringify(updated))
@@ -158,11 +162,11 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
     })
     setHealthMap((prev) => {
       const additions = Object.fromEntries(
-        customTools.filter((t) => !(t.id in prev)).map((t) => [t.id, 'checking'])
+        allTools.filter((t) => !(t.id in prev)).map((t) => [t.id, 'checking'])
       )
       return Object.keys(additions).length ? { ...prev, ...additions } : prev
     })
-  }, [customTools])
+  }, [allTools])
 
   // Close settings dropdown when clicking outside
   useEffect(() => {
@@ -304,7 +308,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
         if (srcIndex !== dstIndex && srcId) {
           setToolOrder((prev) => {
             const sectionIds = prev.filter((id) => {
-              const t = TOOLS.find((tt) => tt.id === id)
+              const t = allToolsRef.current.find((tt) => tt.id === id)
               return t && t.category === srcSection
             })
             const toId = sectionIds[dstIndex]
@@ -349,7 +353,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
   }, [])
 
   const handleResetLayout = useCallback(() => {
-    setToolOrder(TOOLS.map((t) => t.id))
+    setToolOrder(allToolsRef.current.map((t) => t.id))
     setFavourites([])
     setCollapsed(new Set())
     localStorage.removeItem(keysRef.current.orderKey)
@@ -358,7 +362,7 @@ export default function Dashboard({ token, onLogout, isAdmin, onManageUsers, onM
     setSettingsOpen(false)
   }, [])
 
-  const allTools = useMemo(() => [...TOOLS, ...customTools], [customTools])
+  const allTools = useMemo(() => [...defaultTools, ...customTools], [defaultTools, customTools])
 
   const orderedTools = useMemo(
     () => toolOrder.map((id) => allTools.find((t) => t.id === id)).filter(Boolean).filter((t) => !hiddenTools.includes(t.id)),
