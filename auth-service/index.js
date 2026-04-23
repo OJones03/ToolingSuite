@@ -125,9 +125,9 @@ app.post("/auth/users", authenticateToken, requireAdmin, async (req, res) => {
   if (!["admin", "user"].includes(role)) {
     return res.status(400).json({ error: "Role must be 'admin' or 'user'" });
   }
-  // Validate username: alphanumeric, hyphens, underscores only
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(username)) {
-    return res.status(400).json({ error: "Username may only contain letters, numbers, hyphens and underscores (max 64 chars)" });
+  // Validate username: alphanumeric, dots, @, hyphens, underscores (allows email addresses)
+  if (!/^[a-zA-Z0-9_.@-]{1,64}$/.test(username)) {
+    return res.status(400).json({ error: "Username may only contain letters, numbers, dots, @, hyphens and underscores (max 64 chars)" });
   }
 
   const users = loadUsers() ?? [];
